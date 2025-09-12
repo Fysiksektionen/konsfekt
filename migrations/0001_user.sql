@@ -1,0 +1,6 @@
+CREATE TABLE User (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone_number TEXT UNIQUE,
+    balance REAL NOT NULL DEFAULT 0
+);

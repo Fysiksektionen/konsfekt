@@ -1,0 +1,15 @@
+[package]
+name = "kons-coin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4"
+clap = { version = "4.5.47", features = ["derive"] }
+dotenv = "0.15.0"
+tokio = { version = "1.45.1", features = ["full"]}
+
+[dependencies.sqlx]
+version = "0.8"
+default-features = false
+features = ["macros", "migrate", "runtime-tokio", "tls-native-tls", "sqlite"]
