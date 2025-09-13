@@ -1,6 +1,6 @@
-use sqlx::{Result, SqlitePool};
+use sqlx::{prelude::FromRow, Result, SqlitePool};
 
-#[derive(Debug)]
+#[derive(Debug, FromRow)]
 pub struct User {
     pub id: i64,
     pub name: String,
@@ -14,7 +14,7 @@ pub async fn create_user(
     name: &str,
     phone_number: &str,
 ) -> Result<i64> {
-    let rec = sqlx::query(
+    let res = sqlx::query(
         r#"
         INSERT INTO User (name, phone_number, balance)
         VALUES (?, ?, 0)
@@ -22,7 +22,16 @@ pub async fn create_user(
     .execute(pool)
     .await?;
 
-    Ok(rec.last_insert_rowid())
+    Ok(res.last_insert_rowid())
+}
+
+pub async fn get_user(pool: &SqlitePool, user_id: Option<i64>, phone_number: Option<String>) -> Result<User> {
+    sqlx::query_as(
+        r#"
+        SELECT id, name, phone_number, balance 
+        FROM User 
+        WHERE id = ? OR phone_number = ?
+        "#).bind(user_id).bind(phone_number).fetch_one(pool).await
 }
 
 /// Delete a user by id
@@ -48,14 +57,3 @@ pub async fn update_balance(pool: &SqlitePool, user_id: i64, new_balance: f32) -
 
     Ok(res.rows_affected())
 }
-
-/// Read a user’s balance by id
-pub async fn get_balance(pool: &SqlitePool, user_id: i64) -> Result<Option<f32>> {
-    let balance: Option<f32> = sqlx::query_scalar(
-        r#"
-        SELECT balance FROM User WHERE id = ?
-        "#).bind(user_id).fetch_optional(pool).await?;
-
-    Ok(balance)
-}
-
