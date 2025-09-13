@@ -1,59 +1,48 @@
-use sqlx::{prelude::FromRow, Result, SqlitePool};
+use sqlx::{Result, SqlitePool};
 
-#[derive(Debug, FromRow)]
-pub struct User {
-    pub id: i64,
-    pub name: String,
-    pub phone_number: String,
-    pub balance: f32,
-}
+use crate::types::User;
 
-/// Create a new user
 pub async fn create_user(
     pool: &SqlitePool,
     name: &str,
-    phone_number: &str,
-) -> Result<i64> {
-    let res = sqlx::query(
+    personal_number: &str,
+) -> Result<u32> {
+    // TODO hash personal number
+    let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO User (name, phone_number, balance)
+        INSERT INTO User (name, personal_number, balance)
         VALUES (?, ?, 0)
-        "#).bind(name).bind(phone_number)
-    .execute(pool)
+        RETURNING id
+        "#).bind(name).bind(personal_number).fetch_one(pool)
     .await?;
-
-    Ok(res.last_insert_rowid())
+    Ok(id)
 }
 
-pub async fn get_user(pool: &SqlitePool, user_id: Option<i64>, phone_number: Option<String>) -> Result<User> {
+pub async fn get_user(pool: &SqlitePool, user_id: u32) -> Result<User> {
     sqlx::query_as(
         r#"
-        SELECT id, name, phone_number, balance 
+        SELECT id, name, balance 
         FROM User 
-        WHERE id = ? OR phone_number = ?
-        "#).bind(user_id).bind(phone_number).fetch_one(pool).await
+        WHERE id = ?
+        "#).bind(user_id).fetch_one(pool).await
 }
 
-/// Delete a user by id
-pub async fn delete_user(pool: &SqlitePool, user_id: i64) -> Result<u64> {
-    let res = sqlx::query(
+pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<()> {
+    sqlx::query(
         r#"
         DELETE FROM User WHERE id = ?
         "#).bind(user_id)
     .execute(pool)
     .await?;
-
-    Ok(res.rows_affected())
+    Ok(())
 }
 
-/// Update a user’s balance
-pub async fn update_balance(pool: &SqlitePool, user_id: i64, new_balance: f32) -> Result<u64> {
-    let res = sqlx::query(
+pub async fn update_balance(pool: &SqlitePool, user_id: u32, new_balance: f32) -> Result<()> {
+    sqlx::query(
         r#"
         UPDATE User SET balance = ? WHERE id = ?
         "#).bind(new_balance).bind(user_id)
     .execute(pool)
     .await?;
-
-    Ok(res.rows_affected())
+    Ok(())
 }
