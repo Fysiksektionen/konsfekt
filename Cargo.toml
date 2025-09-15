@@ -15,8 +15,11 @@ actix-web = "4"
 clap = { version = "4.5.47", features = ["derive"] }
 dotenv = "0.15.0"
 tokio = { version = "1.45.1", features = ["full"]}
+uuid = { version = "1.17.0", features = ["serde", "v4"]}
+reqwest = { version = "0.12.23", features = ["json"]}
+hmac = "0.12.1"
 
 [dependencies.sqlx]
 version = "0.8"
 default-features = false
-features = ["macros", "migrate", "runtime-tokio", "tls-native-tls", "sqlite"]
+features = ["macros", "migrate", "runtime-tokio", "tls-native-tls", "sqlite", "time", "uuid"]

@@ -1,9 +1,11 @@
 use actix_web::cookie::Cookie;
+use hmac::{Hmac, Mac};
 use rand::{rngs::OsRng, TryRngCore};
 use sha2::{Digest, Sha256};
-use sqlx::SqlitePool;
+use sqlx::{Result, SqlitePool};
 use time::{Duration, OffsetDateTime};
 use hex;
+use uuid::Uuid;
 
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
@@ -36,21 +38,7 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
-pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<Option<u32>, sqlx::Error> {
-    let Some(token) = parse_auth_cookie(cookie) else {
-        return Ok(None);
-    };
-
-    let session = get_session(pool, token.id).await?;
-
-    if let Some(session) = session {
-        return Ok(Some(session.user));
-    }
-
-    Ok(None)
-}
-
-pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<Option<(Session, String)>, sqlx::Error> {
+pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<Option<(Session, String)>> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
@@ -72,7 +60,7 @@ pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<Option<(S
     return Ok(Some((session, token)));
 }
 
-pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>, sqlx::Error> {
+pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>> {
     let session = get_session(pool, token.id).await?;
 
     if let Some(session) = session {
@@ -87,14 +75,14 @@ pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<
     Ok(None)
 }
 
-pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<(), sqlx::Error> {
+pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<()> {
     sqlx::query("
         DELETE FROM Session
         WHERE id = ?").bind(session.id.clone()).execute(pool).await?;
     Ok(())
 }
 
-async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Session>, sqlx::Error> {
+async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Session>> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     
     let session: Option<Session> = sqlx::query_as("
@@ -114,7 +102,7 @@ async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Ses
     }
 }
 
-async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<(), sqlx::Error> {
+async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<()> {
     sqlx::query("DELETE FROM Session WHERE id = ?").bind(session_id).execute(pool).await?;
     Ok(())
 }
@@ -141,3 +129,46 @@ fn eq_hashes(hash1: Vec<u8>, hash2: Vec<u8>) -> bool {
     }
     return true;
 }
+
+pub async fn create_bankid_order(
+    pool: &SqlitePool,
+    order_ref: String,
+    nonce: Uuid,
+) -> sqlx::Result<()> {
+    let now = OffsetDateTime::now_utc().unix_timestamp(); 
+    sqlx::query(
+        r#"
+        INSERT INTO User (id, nonce, created_at)
+        VALUES (?, ?, ?)
+        "#).bind(order_ref).bind(nonce).bind(now).execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn update_bankid_order(pool: &SqlitePool, order_ref: String, status: String, user_id: Option<u32>) -> sqlx::Result<()> {
+    let now = match status.as_str() {
+        "complete" => Some(OffsetDateTime::now_utc().unix_timestamp()),
+        _ => None
+    };
+    sqlx::query(
+        r#"
+        UPDATE BankidOrder
+        SET user_id = ?
+        SET completed_at = ?
+        SET status = ?
+        WHERE id = ?
+        "#).bind(user_id).bind(now).bind(status).bind(order_ref).execute(pool).await?;
+    Ok(())
+}
+
+type HmacSha256 = Hmac<Sha256>;
+
+pub fn hash_personal_number(secret: &str, personal_number: &str) -> String {
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
+    // Should never fail?
+    
+    mac.update(personal_number.as_bytes());
+    let result = mac.finalize().into_bytes();
+    return hex::encode(result);
+}
+
