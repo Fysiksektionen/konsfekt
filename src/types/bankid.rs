@@ -24,10 +24,10 @@ pub struct CollectResponse {
 }
 
 impl CollectResponse {
-    pub async fn get_user(&self, state: Data<AppState>) -> Result<crud::User, AppError> {
+    pub async fn get_user(&self, state: &Data<AppState>) -> Result<Option<crud::User>, AppError> {
         if self.status == "complete" {
-            if let Some(data) = self.completion_data {
-                return crud::get_or_create_user(state, &data.user.name, &data.user.personal_number).await;
+            if let Some(data) = &self.completion_data {
+                return Ok(Some(crud::get_or_create_user(state, &data.user.name, &data.user.personal_number).await?));
             }
         }
         Ok(None)

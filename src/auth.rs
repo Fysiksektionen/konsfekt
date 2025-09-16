@@ -7,6 +7,8 @@ use time::{Duration, OffsetDateTime};
 use hex;
 use uuid::Uuid;
 
+use crate::database::model::BankidOrder;
+
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
 pub const AUTH_COOKIE: &str = "session-token";
@@ -38,7 +40,7 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
-pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<Option<(Session, String)>> {
+pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<Option<(Session, String)>> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
@@ -159,6 +161,16 @@ pub async fn update_bankid_order(pool: &SqlitePool, order_ref: String, status: S
         WHERE id = ?
         "#).bind(user_id).bind(now).bind(status).bind(order_ref).execute(pool).await?;
     Ok(())
+}
+
+pub async fn get_bankid_order(pool: &SqlitePool, order_ref: Option<String>, nonce: Option<String>) -> sqlx::Result<BankidOrder> {
+    let bankid_order: BankidOrder = sqlx::query_as(
+        r#"
+        SELECT id, user_id, nonce, created_at, completed_at, status
+        FROM BankidOrder
+        WHERE id = ? OR nonce = ?
+        "#).bind(order_ref).bind(nonce).fetch_one(pool).await?;
+    Ok(bankid_order)
 }
 
 type HmacSha256 = Hmac<Sha256>;

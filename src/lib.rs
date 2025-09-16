@@ -2,7 +2,7 @@ pub mod database;
 pub mod auth;
 pub mod types;
 
-use std::{env, error::Error};
+use std::{env, fmt};
 
 use reqwest::Client;
 use sqlx::{Pool, Sqlite};
@@ -40,8 +40,33 @@ impl AppState {
     }
 }
 
+// TODO impl Responder
+
+#[derive(Debug)]
 pub enum AppError {
     ClientError(reqwest::Error),
-    DatabaseError(sqlx::Error)
-
+    DatabaseError(sqlx::Error),
 }
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::ClientError(err) => write!(f, "Client error: {}", err),
+            AppError::DatabaseError(err) => write!(f, "Database error: {}", err),
+        }
+    }
+}
+
+impl From<reqwest::Error> for AppError {
+    fn from(err: reqwest::Error) -> Self {
+        AppError::ClientError(err)
+    }
+}
+
+impl From<sqlx::Error> for AppError {
+    fn from(err: sqlx::Error) -> Self {
+        AppError::DatabaseError(err)
+    }
+}
+
+impl std::error::Error for AppError {}

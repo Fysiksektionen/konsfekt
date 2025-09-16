@@ -2,8 +2,8 @@ use std::{collections::HashMap, error::Error, time::Duration};
 
 use kons_coin::{auth, database::{self, crud}, types::bankid::{CollectResponse, OrderResponse}, AppError, AppState};
 
-use actix_web::{body::MessageBody, dev::{ConnectionInfo, ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}, App, HttpMessage, HttpRequest, HttpServer, Responder};
-use serde::{de::DeserializeOwned, Deserialize};
+use actix_web::{body::MessageBody, dev::{ConnectionInfo, ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -60,9 +60,35 @@ struct NoncePayload {
     nonce: String
 }
 
+#[derive(Serialize)]
+#[serde(transparent)]
+struct SessionResponse {
+    token: String,
+}
+
 #[post("/finalize_auth")]
 async fn finalize_auth(state: Data<AppState>, nonce: web::Json<NoncePayload>) -> impl Responder {
-    
+    let order = auth::get_bankid_order(&state.db, None, Some(nonce)).await?;
+
+    match &order.status {
+        "complete" => {},
+        "pending" => { 
+            return HttpResponse::Accepted()
+                .content_type("application/json")
+                .body(r#"{"status":"pending"}"#);
+        },
+        "failed" => {
+            return Err(actix_web::error::ErrorUnauthorized("Bankid authentication failed"));
+        }
+    };
+
+    if let Some(user_id) = order.user_id {
+        match auth::create_session(&state.db, user_id).await? {
+            Some((_, token)) => Ok(web::Json(SessionResponse { token })),
+            None => Err(actix_web::error::ErrorInternalServerError("Could not create session"))
+        }
+    }
+    Err(actix_web::error::ErrorInternalServerError("Could not find user"))
 }
 
 async fn poll_collect(state: Data<AppState>, order_response: OrderResponse) -> Result<bool, AppError> {
@@ -73,48 +99,31 @@ async fn poll_collect(state: Data<AppState>, order_response: OrderResponse) -> R
     loop {
         // TODO Verify bankid response authenticity
         let collect_response: CollectResponse = post_bankid_api(&state, "/collect", &collect_json).await?;
-        let user = match collect_response.status.as_str() {
-            "complete" => {
-                match collect_response.completion_data {
-                    Some(data) => crud::get_or_create_user(state, &data.user.name, &data.user.personal_number).await,
-                    None => None
-                }
-            }
-        }
-        if collect_response.status == "pending" {
-            sleep(Duration::from_secs(2)).await;
-            continue;
-        }
+        let user = collect_response.get_user(&state).await?;
 
-        if collect_response.status == "complete" && collect_response.completion_data.is_some() {
-            let data = collect_response.completion_data.unwrap();
-            let user = crud::get_or_create_user(state, &data.user.name, &data.user.personal_number).await?;
-            auth::update_bankid_order(
-                &state.db, 
-                order_response.order_ref, 
-                collect_response.status, 
-                Some(user.id)).await;
-        } else {
-
-            return Ok(false);
-        }
         auth::update_bankid_order(
             &state.db, 
             order_response.order_ref, 
             collect_response.status, 
-            Some(user.id)).await;
+            user.map(|u| u.id)).await;
+
+        match &collect_response.status {
+            "complete" => return Ok(true),
+            "pending" => {
+                sleep(Duration::from_secs(2)).await;
+                continue;
+            },
+            "failed" => return Ok(false)
+        }
     }
 
 }
 
-async fn post_bankid_api<T: DeserializeOwned>(state: &Data<AppState>, endpoint: &str, payload: &HashMap<&str, &str>) -> Result<T, actix_web::Error> {
-    state.client.post(format!("{}/{}", state.env_vars.bankid_api, endpoint))
+async fn post_bankid_api<T: DeserializeOwned>(state: &Data<AppState>, endpoint: &str, payload: &HashMap<&str, &str>) -> Result<T, AppError> {
+    Ok(state.client.post(format!("{}/{}", state.env_vars.bankid_api, endpoint))
         .json(payload)
-        .send().await
-        .map_err(|_| actix_web::error::ErrorInternalServerError("Error when communicating with BankID's services"))?
-        .json::<T>().await
-        .map_err(|_| actix_web::error::ErrorInternalServerError("Could not parse BankID response"))
-
+        .send().await?
+        .json::<T>().await?)
 }
 
 async fn session_middleware(

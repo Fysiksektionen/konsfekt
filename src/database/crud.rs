@@ -3,6 +3,8 @@ use sqlx::{Result, SqlitePool};
 
 use crate::{auth, AppState};
 
+use super::model::User;
+
 async fn create_user(
     pool: &SqlitePool,
     name: &str,
@@ -24,18 +26,11 @@ async fn create_user(
     })
 }
 
-pub async fn get_or_create_user(state: Data<AppState>, name: &str, personal_number: &str) ->Result<User> {
+pub async fn get_or_create_user(state: &Data<AppState>, name: &str, personal_number: &str) -> Result<User> {
     if let Ok(user) = get_user(state.clone(), None, Some(personal_number.to_string())).await {
         return Ok(user);
     }
     create_user(&state.db, name, personal_number).await
-}
-
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
-pub struct User {
-    pub id: u32,
-    pub name: String,
-    pub balance: f32,
 }
 
 pub async fn get_user(state: Data<AppState>, user_id: Option<u32>, personal_number: Option<String>) -> Result<User> {
