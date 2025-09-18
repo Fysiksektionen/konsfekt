@@ -1,15 +1,14 @@
 pub mod database;
 pub mod auth;
-pub mod types;
+pub mod routes;
 
 use std::{env, fmt};
 
-use actix_web::{http::StatusCode, HttpResponse, Responder, ResponseError};
+use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use reqwest::Client;
 use sqlx::{Pool, Sqlite};
 
 pub struct EnvironmentVariables {
-    pub bankid_api: String,
     pub frontend_url: String,
     pub hmac_secret: String,
 }
@@ -17,7 +16,6 @@ pub struct EnvironmentVariables {
 impl EnvironmentVariables {
     pub fn new() -> Self {
         EnvironmentVariables { 
-            bankid_api: env::var("BANKID_API").unwrap(), 
             frontend_url: env::var("FRONTEND_URL").unwrap(), 
             hmac_secret: env::var("HMAC_SECRET").unwrap() 
         }
@@ -46,18 +44,6 @@ pub enum AppError {
     ClientError(reqwest::Error),
     DatabaseError(sqlx::Error),
 }
-
-// impl Responder for AppError {
-//     type Body = actix_web::body::BoxBody;
-// 
-//     fn respond_to(self, _req: &actix_web::HttpRequest) -> actix_web::HttpResponse<Self::Body> {
-//         let (status, message) = match &self {
-//             Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
-//             Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}"))
-//         };
-//         HttpResponse::build(status).body(message)
-//     }
-// }
 
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {

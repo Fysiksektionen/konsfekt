@@ -5,9 +5,8 @@ use sha2::{Digest, Sha256};
 use sqlx::{Result, SqlitePool};
 use time::{Duration, OffsetDateTime};
 use hex;
-use uuid::Uuid;
 
-use crate::{database::model::BankidOrder, AppError};
+use crate::AppError;
 
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
@@ -130,47 +129,6 @@ fn eq_hashes(hash1: Vec<u8>, hash2: Vec<u8>) -> bool {
         }
     }
     return true;
-}
-
-pub async fn create_bankid_order(
-    pool: &SqlitePool,
-    order_ref: String,
-    nonce: Uuid,
-) -> Result<(), AppError> {
-    let now = OffsetDateTime::now_utc().unix_timestamp(); 
-    sqlx::query(
-        r#"
-        INSERT INTO User (id, nonce, created_at)
-        VALUES (?, ?, ?)
-        "#).bind(order_ref).bind(nonce).bind(now).execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn update_bankid_order(pool: &SqlitePool, order_ref: String, status: String, user_id: Option<u32>) -> Result<(), AppError> {
-    let now = match status.as_str() {
-        "complete" => Some(OffsetDateTime::now_utc().unix_timestamp()),
-        _ => None
-    };
-    sqlx::query(
-        r#"
-        UPDATE BankidOrder
-        SET user_id = ?
-        SET completed_at = ?
-        SET status = ?
-        WHERE id = ?
-        "#).bind(user_id).bind(now).bind(status).bind(order_ref).execute(pool).await?;
-    Ok(())
-}
-
-pub async fn get_bankid_order(pool: &SqlitePool, order_ref: Option<String>, nonce: Option<String>) -> Result<BankidOrder, AppError> {
-    let bankid_order: BankidOrder = sqlx::query_as(
-        r#"
-        SELECT id, user_id, nonce, created_at, completed_at, status
-        FROM BankidOrder
-        WHERE id = ? OR nonce = ?
-        "#).bind(order_ref).bind(nonce).fetch_one(pool).await?;
-    Ok(bankid_order)
 }
 
 type HmacSha256 = Hmac<Sha256>;
