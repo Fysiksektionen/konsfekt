@@ -1,4 +1,4 @@
-use kons_coin::{database, routes, AppState};
+use konsfekt::{database, routes, AppState};
 
 use actix_web::{web::Data, App, HttpServer};
 
@@ -14,7 +14,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(AppState::from(pool.clone())))
             .service(routes::hello)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 5656))?
     .run()
     .await
 }

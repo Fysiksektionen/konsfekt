@@ -1309,7 +1309,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kons-coin"
+name = "konsfekt"
 version = "0.1.0"
 dependencies = [
  "actix-web",
