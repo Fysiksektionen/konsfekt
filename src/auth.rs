@@ -7,7 +7,7 @@ use time::{Duration, OffsetDateTime};
 use hex;
 use uuid::Uuid;
 
-use crate::database::model::BankidOrder;
+use crate::{database::model::BankidOrder, AppError};
 
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
@@ -40,7 +40,7 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
-pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<Option<(Session, String)>> {
+pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<Option<(Session, String)>, AppError> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
@@ -62,7 +62,7 @@ pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<Opt
     return Ok(Some((session, token)));
 }
 
-pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>> {
+pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>, AppError> {
     let session = get_session(pool, token.id).await?;
 
     if let Some(session) = session {
@@ -77,14 +77,14 @@ pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<
     Ok(None)
 }
 
-pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<()> {
+pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<(), AppError> {
     sqlx::query("
         DELETE FROM Session
         WHERE id = ?").bind(session.id.clone()).execute(pool).await?;
     Ok(())
 }
 
-async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Session>> {
+async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Session>, AppError> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     
     let session: Option<Session> = sqlx::query_as("
@@ -104,7 +104,7 @@ async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Ses
     }
 }
 
-async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<()> {
+async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<(), AppError> {
     sqlx::query("DELETE FROM Session WHERE id = ?").bind(session_id).execute(pool).await?;
     Ok(())
 }
@@ -136,7 +136,7 @@ pub async fn create_bankid_order(
     pool: &SqlitePool,
     order_ref: String,
     nonce: Uuid,
-) -> sqlx::Result<()> {
+) -> Result<(), AppError> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     sqlx::query(
         r#"
@@ -147,7 +147,7 @@ pub async fn create_bankid_order(
     Ok(())
 }
 
-pub async fn update_bankid_order(pool: &SqlitePool, order_ref: String, status: String, user_id: Option<u32>) -> sqlx::Result<()> {
+pub async fn update_bankid_order(pool: &SqlitePool, order_ref: String, status: String, user_id: Option<u32>) -> Result<(), AppError> {
     let now = match status.as_str() {
         "complete" => Some(OffsetDateTime::now_utc().unix_timestamp()),
         _ => None
@@ -163,7 +163,7 @@ pub async fn update_bankid_order(pool: &SqlitePool, order_ref: String, status: S
     Ok(())
 }
 
-pub async fn get_bankid_order(pool: &SqlitePool, order_ref: Option<String>, nonce: Option<String>) -> sqlx::Result<BankidOrder> {
+pub async fn get_bankid_order(pool: &SqlitePool, order_ref: Option<String>, nonce: Option<String>) -> Result<BankidOrder, AppError> {
     let bankid_order: BankidOrder = sqlx::query_as(
         r#"
         SELECT id, user_id, nonce, created_at, completed_at, status

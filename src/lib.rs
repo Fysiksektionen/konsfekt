@@ -4,6 +4,7 @@ pub mod types;
 
 use std::{env, fmt};
 
+use actix_web::{http::StatusCode, HttpResponse, Responder, ResponseError};
 use reqwest::Client;
 use sqlx::{Pool, Sqlite};
 
@@ -40,12 +41,32 @@ impl AppState {
     }
 }
 
-// TODO impl Responder
-
 #[derive(Debug)]
 pub enum AppError {
     ClientError(reqwest::Error),
     DatabaseError(sqlx::Error),
+}
+
+// impl Responder for AppError {
+//     type Body = actix_web::body::BoxBody;
+// 
+//     fn respond_to(self, _req: &actix_web::HttpRequest) -> actix_web::HttpResponse<Self::Body> {
+//         let (status, message) = match &self {
+//             Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
+//             Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}"))
+//         };
+//         HttpResponse::build(status).body(message)
+//     }
+// }
+
+impl ResponseError for AppError {
+    fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
+        let (status, message) = match &self {
+            Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
+            Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}"))
+        };
+        HttpResponse::build(status).body(message)
+    }
 }
 
 impl fmt::Display for AppError {

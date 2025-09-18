@@ -1,7 +1,7 @@
 use actix_web::web::Data;
 use serde::Deserialize;
 
-use crate::{database::crud, AppError, AppState};
+use crate::{database::{crud, model}, AppError, AppState};
 
 /// Response when calling /auth on BankID's API
 #[derive(Deserialize, Clone)]
@@ -24,7 +24,7 @@ pub struct CollectResponse {
 }
 
 impl CollectResponse {
-    pub async fn get_user(&self, state: &Data<AppState>) -> Result<Option<crud::User>, AppError> {
+    pub async fn get_user(&self, state: &Data<AppState>) -> Result<Option<model::User>, AppError> {
         if self.status == "complete" {
             if let Some(data) = &self.completion_data {
                 return Ok(Some(crud::get_or_create_user(state, &data.user.name, &data.user.personal_number).await?));

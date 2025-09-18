@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use kons_coin::{auth, database::{self, crud}, types::bankid::{CollectResponse, OrderResponse}, AppError, AppState};
 
@@ -6,20 +6,6 @@ use actix_web::{body::MessageBody, dev::{ConnectionInfo, ServiceRequest, Service
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::time::sleep;
 use uuid::Uuid;
-
-#[derive(Deserialize)]
-struct CreateUserData {
-    personal_number: String,
-    name: String,
-}
-
-#[post("/create-user")]
-async fn create_user(state: Data<AppState>, user_data: web::Json<CreateUserData>) -> impl Responder {
-    return match crud::create_user(&state.db, &user_data.name, &user_data.personal_number).await {
-        Err(_) => Err(actix_web::error::ErrorConflict("User may already exist")),
-        Ok(id) => Ok(id.to_string())
-    }
-}
 
 #[get("/get-user")]
 async fn get_user(state: Data<AppState>, req: HttpRequest) -> impl Responder {
@@ -66,35 +52,34 @@ struct SessionResponse {
     token: String,
 }
 
-#[post("/finalize_auth")]
+#[post("/finalize-auth")]
 async fn finalize_auth(state: Data<AppState>, nonce: web::Json<NoncePayload>) -> impl Responder {
-    let order = auth::get_bankid_order(&state.db, None, Some(nonce)).await?;
-
-    match &order.status {
+    let order = auth::get_bankid_order(&state.db, None, Some(nonce.nonce)).await?;
+    match order.status.as_str() {
         "complete" => {},
+        "failed" => {
+            return Err(actix_web::error::ErrorUnauthorized("Bankid authentication failed"));
+        }
         "pending" => { 
             return HttpResponse::Accepted()
                 .content_type("application/json")
                 .body(r#"{"status":"pending"}"#);
         },
-        "failed" => {
-            return Err(actix_web::error::ErrorUnauthorized("Bankid authentication failed"));
-        }
     };
 
-    if let Some(user_id) = order.user_id {
-        match auth::create_session(&state.db, user_id).await? {
-            Some((_, token)) => Ok(web::Json(SessionResponse { token })),
-            None => Err(actix_web::error::ErrorInternalServerError("Could not create session"))
-        }
-    }
-    Err(actix_web::error::ErrorInternalServerError("Could not find user"))
+    // if let Some(user_id) = order.user_id {
+    //     return match auth::create_session(&state.db, user_id).await? {
+    //         Some((_, token)) => Ok(web::Json(SessionResponse { token })),
+    //         None => Err(actix_web::error::ErrorInternalServerError("Could not create session"))
+    //     };
+    // };
+    // Err(actix_web::error::ErrorInternalServerError("Could not find user"))
 }
 
 async fn poll_collect(state: Data<AppState>, order_response: OrderResponse) -> Result<bool, AppError> {
-    let order_ref = order_response.order_ref;
+    let order_ref = order_response.order_ref.clone();
     let collect_json = HashMap::from([
-        ("orderRef", order_response.order_ref.as_str())
+        ("orderRef", order_ref.as_str())
     ]);
     loop {
         // TODO Verify bankid response authenticity
@@ -103,17 +88,17 @@ async fn poll_collect(state: Data<AppState>, order_response: OrderResponse) -> R
 
         auth::update_bankid_order(
             &state.db, 
-            order_response.order_ref, 
-            collect_response.status, 
+            order_ref.clone(), 
+            collect_response.status.clone(), 
             user.map(|u| u.id)).await;
 
-        match &collect_response.status {
+        match collect_response.status.as_str() {
             "complete" => return Ok(true),
             "pending" => {
                 sleep(Duration::from_secs(2)).await;
                 continue;
             },
-            "failed" => return Ok(false)
+            _ => return Ok(false) // failed
         }
     }
 
@@ -132,7 +117,7 @@ async fn session_middleware(
     next: middleware::Next<impl MessageBody>) 
     -> Result<ServiceResponse<impl MessageBody>, actix_web::Error> {
     let path = req.path();
-    if path == "/authenticate-user" {
+    if path == "/authenticate-user" || path == "/finalize-auth" {
         return next.call(req).await;
     }
     match auth::parse_auth_cookie(req.cookie(auth::AUTH_COOKIE)) {

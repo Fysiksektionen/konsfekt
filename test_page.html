@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Rust Auth Test</title>
+</head>
+<body>
+  <h1>Rust Auth Test</h1>
+
+  <div id="auth">
+    <button id="loginBtn">Login with BankID</button>
+  </div>
+
+  <div id="finalize" style="margin-top:20px;">
+    <input id="nonce" placeholder="Paste nonce here" />
+    <button id="finalizeBtn">Finalize Auth</button>
+  </div>
+
+  <div id="me" style="margin-top:20px;">
+    <button id="meBtn">Get My User</button>
+    <pre id="userInfo"></pre>
+  </div>
+
+  <script>
+    const backendUrl = "http://127.0.0.1:8080";
+
+    let sessionToken = null;
+
+    document.getElementById("loginBtn").onclick = async () => {
+      const resp = await fetch(`${backendUrl}/authenticate-user`, {
+        method: "POST"
+      });
+      if (!resp.ok) {
+        alert("Failed to start authentication");
+        return;
+      }
+      const autostartUrl = await resp.text();
+      window.location.href = autostartUrl.replace(/"/g, ""); // Open BankID app
+    };
+
+    document.getElementById("finalizeBtn").onclick = async () => {
+      const nonce = document.getElementById("nonce").value;
+      const resp = await fetch(`${backendUrl}/finalize-auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nonce })
+      });
+      if (resp.status === 200) {
+        const data = await resp.json();
+        sessionToken = data.token;
+        alert("Authentication complete!");
+      } else if (resp.status === 202) {
+        alert("Still pending, try again later.");
+      } else {
+        alert("Authentication failed.");
+      }
+    };
+
+    document.getElementById("meBtn").onclick = async () => {
+      if (!sessionToken) {
+        alert("No session token yet");
+        return;
+      }
+      const resp = await fetch(`${backendUrl}/get-user`, {
+        headers: {
+          "Authorization": `Bearer ${sessionToken}` // or set cookie if your backend expects that
+        }
+      });
+      document.getElementById("userInfo").textContent =
+        resp.ok ? JSON.stringify(await resp.json(), null, 2) : await resp.text();
+    };
+  </script>
+</body>
+</html>
