@@ -1,7 +1,7 @@
+
 use actix_web::{get, HttpResponse, Responder};
 
-
-#[get("/")]
+#[get("/api")]
 pub async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
+    HttpResponse::Ok().body("Hello backend!")
 }
