@@ -13,9 +13,11 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(Data::new(AppState::from(pool.clone())))
             .service(routes::hello)
+            .service(routes::google_login)
+            .service(routes::google_callback)
             .service(actix_files::Files::new("/", "./static").index_file("index.html"))
     })
-    .bind(("0.0.0.0", 5656))?
+    .bind(("127.0.0.1", 8080))?
     .run()
     .await
 }
