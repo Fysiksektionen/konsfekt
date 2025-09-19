@@ -9,15 +9,19 @@ use reqwest::Client;
 use sqlx::{Pool, Sqlite};
 
 pub struct EnvironmentVariables {
-    pub frontend_url: String,
     pub hmac_secret: String,
+    pub google_client_id: String,
+    pub google_client_secret: String,
+    pub google_redirect_uri: String,
 }
 
 impl EnvironmentVariables {
     pub fn new() -> Self {
         EnvironmentVariables { 
-            frontend_url: env::var("FRONTEND_URL").unwrap(), 
-            hmac_secret: env::var("HMAC_SECRET").unwrap() 
+            hmac_secret: env::var("HMAC_SECRET").unwrap(), 
+            google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
+            google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
+            google_redirect_uri: env::var("GOOGLE_REDIRECT_URI").unwrap(),
         }
     }
 }
