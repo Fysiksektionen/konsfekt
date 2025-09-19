@@ -133,11 +133,11 @@ fn eq_hashes(hash1: Vec<u8>, hash2: Vec<u8>) -> bool {
 
 type HmacSha256 = Hmac<Sha256>;
 
-pub fn hash_personal_number(secret: &str, personal_number: &str) -> String {
+pub fn hash_google_id(secret: &str, google_id: &str) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
     // Should never fail?
     
-    mac.update(personal_number.as_bytes());
+    mac.update(google_id.as_bytes());
     let result = mac.finalize().into_bytes();
     return hex::encode(result);
 }
