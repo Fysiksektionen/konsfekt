@@ -12,7 +12,7 @@ Create a `.env` file with the following fields
 - `GOOGLE_CLIENT_SECRET`
 
 Make sure to add the needed authorized URIs to your Google OAuth client. Authorized JavaScript origin should be set to the `SITE_DOMAIN`
-and the Authorized redirect URI should be the same but with `/auth/google/callback` appended.
+and the Authorized redirect URI `{SITE_DOMAIN}/auth/google/callback`.
 
 ### Build
 Build frontend using `npm run build` inside the `frontend` directory.
@@ -25,7 +25,7 @@ Dependencies:
 
 Follow the steps found in the [dev setup](#setup) to get started.
 
-Run the container with `docker compose up --build`. (--build flag only needed the first time)
+Run the container with `docker compose up --build` (`--build` flag only needed the first time)
 
 ## About
 
