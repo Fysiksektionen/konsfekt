@@ -1,6 +1,7 @@
 CREATE TABLE User (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT,
+    email TEXT NOT NULL,
     google_id TEXT UNIQUE,
     balance REAL NOT NULL DEFAULT 0
 );

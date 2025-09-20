@@ -1,7 +1,8 @@
-use actix_web::{get, web::{self, Data}, HttpResponse, Responder};
+use actix_web::{cookie::Cookie, get, web::{self, Data}, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
+use time::Duration;
 
-use crate::AppState;
+use crate::{auth, database::crud, AppState};
 
 //
 //             API
@@ -32,7 +33,7 @@ struct GoogleUserInfo {
     id: String, // Unique google_id for each user (doesn't change)
 }
 
-#[get("/auth/google/login")]
+#[get("/auth/google")]
 pub async fn google_login(state: Data<AppState>) -> impl Responder {
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
@@ -48,7 +49,6 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
 
 #[get("/auth/google/callback")]
 pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthRequest>) -> impl Responder {
-
     let resp: GoogleTokenResponse = state.client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
@@ -67,6 +67,20 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .send().await.unwrap()
         .json().await.unwrap();
 
-    // Temp, redirect and create new session
-    return HttpResponse::Ok().json(user_info)
+    let mut user = crud::get_user(&state.db, None, Some(&user_info.id)).await;
+    if user.is_err() {
+        user = crud::create_user(&state.db, None, &user_info.email, &user_info.id).await;
+    };
+
+    let session_token = match auth::create_session(&state.db, user?.id).await {
+        Ok((_, token)) => token,
+        Err(_) => return Err(actix_web::error::ErrorInternalServerError("Could not create session"))
+    };
+    let cookie = Cookie::build(auth::AUTH_COOKIE, session_token)
+        .path("/")
+        .http_only(true)
+        .secure(false) // TODO Switch to HTTPS
+        .same_site(actix_web::cookie::SameSite::Lax)
+        .max_age(Duration::weeks(4)).finish();
+    Ok(HttpResponse::Ok().cookie(cookie).finish())
 }

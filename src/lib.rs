@@ -9,7 +9,7 @@ use reqwest::Client;
 use sqlx::{Pool, Sqlite};
 
 pub struct EnvironmentVariables {
-    pub hmac_secret: String,
+    pub site_domain: String,
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_redirect_uri: String,
@@ -18,7 +18,7 @@ pub struct EnvironmentVariables {
 impl EnvironmentVariables {
     pub fn new() -> Self {
         EnvironmentVariables { 
-            hmac_secret: env::var("HMAC_SECRET").unwrap(), 
+            site_domain: env::var("SITE_DOMAIN").unwrap(), 
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
             google_redirect_uri: env::var("GOOGLE_REDIRECT_URI").unwrap(),
@@ -47,13 +47,15 @@ impl AppState {
 pub enum AppError {
     ClientError(reqwest::Error),
     DatabaseError(sqlx::Error),
+    GenericError(String)
 }
 
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
         let (status, message) = match &self {
             Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
-            Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}"))
+            Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}")),
+            Self::GenericError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("GenericError: {e}"))
         };
         HttpResponse::build(status).body(message)
     }
@@ -64,6 +66,7 @@ impl fmt::Display for AppError {
         match self {
             AppError::ClientError(err) => write!(f, "Client error: {}", err),
             AppError::DatabaseError(err) => write!(f, "Database error: {}", err),
+            AppError::GenericError(err) => write!(f, "Generic error: {}", err)
         }
     }
 }

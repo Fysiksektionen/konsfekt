@@ -39,11 +39,11 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
-pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<Option<(Session, String)>, AppError> {
-    let now = OffsetDateTime::now_utc().unix_timestamp(); 
+pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<(Session, String), AppError> {
+    let now = OffsetDateTime::now_utc().unix_timestamp();
     let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
-        _ => return Ok(None)
+        _ => return Err(AppError::GenericError("Could not generate random string".to_string()))
     };
     let secret_hash = hex::encode(Sha256::digest(secret.clone()));
 
@@ -58,7 +58,7 @@ pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<Opt
         VALUES (?, ?, ?, ?)").bind(id).bind(secret_hash).bind(now).bind(user_id)
         .execute(pool).await?;
     
-    return Ok(Some((session, token)));
+    return Ok((session, token));
 }
 
 pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>, AppError> {
