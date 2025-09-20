@@ -11,7 +11,7 @@ pub async fn init_database() -> Result<Pool<Sqlite>, sqlx::Error> {
     let pool = SqlitePool::connect_with(db_options).await?;
 
     sqlx::query("PRAGMA foreign_keys = ON;").execute(&pool).await?;
-
+    
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     return Ok(pool);

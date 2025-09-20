@@ -1,0 +1,5 @@
+{$SITE_DOMAIN} {
+    encode gzip
+
+    reverse_proxy /* konsfekt:8080
+}
