@@ -1,6 +1,6 @@
 use konsfekt::{auth, database, routes, AppState};
 
-use actix_web::{body::MessageBody, dev::{ServiceRequest, ServiceResponse}, get, middleware, web::{self, Data}, App, HttpMessage, HttpServer, Responder};
+use actix_web::{body::MessageBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data, App, HttpMessage, HttpServer};
 
 async fn session_middleware(
     state: Data<AppState>,
@@ -40,7 +40,7 @@ async fn main() -> std::io::Result<()> {
             .service(routes::hello)
             .service(routes::google_login)
             .service(routes::google_callback)
-            .service(actix_files::Files::new("/", "./../frontend/build").index_file("index.html"))
+            .service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
