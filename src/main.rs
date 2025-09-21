@@ -1,33 +1,22 @@
-use std::env;
-
 use actix_cors::Cors;
 use actix_web::http;
-use konsfekt::{auth, database, routes, AppState};
-use konsfekt::{database, routes, AppState};
+use konsfekt::{database, routes, AppState, EnvironmentVariables};
 
 use actix_web::{middleware, web::Data, App, HttpServer};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let _ = dotenv::dotenv();
-
-    let is_debug = cfg!(debug_assertions);
-    let serve_over_lan = env::var("LAN_SERVER").unwrap_or("false".into()).parse::<bool>().unwrap_or(false);
-     
-    let ip = if serve_over_lan { 
-        local_ip_address::local_ip().expect("Failed to get ip address").to_string()
-    } else {
-        "127.0.0.1".to_string()
-    };
-    let origin = format!("http://{ip}:8080");
-
-    if is_debug {
-        println!("Backend running at {origin}");
-    }
+    let env = EnvironmentVariables::new();
 
     let pool = database::init_database()
         .await
         .expect("Could not initialize database");
+
+    if env.is_debug {
+        println!("Server running on {}", env.site_domain)
+    }
+
+    let env_clone = env.clone(); // To be used in closure
     HttpServer::new(move || {
         let mut cors = Cors::default()
                 .supports_credentials()
@@ -36,23 +25,24 @@ async fn main() -> std::io::Result<()> {
                     http::header::CONTENT_TYPE, 
                     http::header::AUTHORIZATION, 
                 ]);
-        if is_debug {
-            cors = cors
-                .allowed_origin("http://localhost:5173")
-                .allowed_origin("http://127.0.0.1:5173")
-                .allowed_origin(&origin);
+        if env.is_debug {
+            cors = cors.allowed_origin(&env_clone.frontend_url);
         }
-        App::new()
+        let app = App::new()
             .wrap(middleware::from_fn(routes::session_middleware))
-            .app_data(Data::new(AppState::from(pool.clone())))
+            .app_data(Data::new(AppState::from(pool.clone(), env_clone.clone())))
             .wrap(cors)
             .service(routes::hello) // temp
             .service(routes::login) // temp
             .service(routes::google_login)
-            .service(routes::google_callback)
-            .service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
+            .service(routes::google_callback);
+        if env.is_debug {
+            app 
+        } else {
+            app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
+        }
     })
-    .bind((if serve_over_lan { "0.0.0.0" } else { "127.0.0.1"}, 8080))?
+    .bind((if env.is_debug && !env.lan_server { "127.0.0.1" } else { "0.0.0.0"}, 8080))?
     .run()
     .await
 }

@@ -8,16 +8,46 @@ use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use reqwest::Client;
 use sqlx::{Pool, Sqlite};
 
+#[derive(Clone)]
 pub struct EnvironmentVariables {
+    pub is_debug: bool,
+    pub lan_server: bool,
+    pub frontend_url: String,
     pub site_domain: String,
     pub google_client_id: String,
     pub google_client_secret: String,
 }
 
+// Prod (always 0.0.0.0)
+// - caddy locally
+// - caddy other
+//
+// Dev
+// - local 
+// - lan
+
 impl EnvironmentVariables {
     pub fn new() -> Self {
-        EnvironmentVariables { 
-            site_domain: env::var("SITE_DOMAIN").unwrap(), 
+        let _ = dotenv::dotenv();
+        let lan_server = env::var("LAN_SERVER").unwrap_or("false".into()).parse::<bool>().unwrap_or(false);
+         
+        let ip = if lan_server { 
+            local_ip_address::local_ip().expect("Failed to get ip address").to_string()
+        } else {
+            "127.0.0.1".to_string()
+        };
+        let is_debug = cfg!(debug_assertions);
+        EnvironmentVariables {
+            is_debug,
+            lan_server,
+            frontend_url: match is_debug { 
+                true => format!("http://{ip}:5173"),
+                false => "/".to_string()
+            },
+            site_domain: match is_debug {
+                true => format!("http://{ip}:8080"),
+                false => env::var("SITE_DOMAIN").unwrap()
+            },
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
         }
@@ -27,16 +57,15 @@ impl EnvironmentVariables {
 pub struct AppState {
     pub db: Pool<Sqlite>,
     pub client: Client,
-    pub env_vars: EnvironmentVariables,
+    pub env: EnvironmentVariables,
 }
 
 impl AppState {
-    pub fn from(pool: Pool<Sqlite>) -> Self {
+    pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables) -> Self {
         AppState {
             db: pool,
             client: reqwest::Client::new(),
-            env_vars: EnvironmentVariables::new()
-
+            env: env_vars
         }
     }
 }

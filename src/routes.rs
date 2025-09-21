@@ -67,10 +67,7 @@ pub async fn session_middleware(
 //
 
 #[get("/")]
-pub async fn hello(req: HttpRequest) -> impl Responder {
-
-    let state = req.app_data::<web::Data<AppState>>().unwrap();
-    // Should never be None
+pub async fn hello(state: Data<AppState>, req: HttpRequest) -> impl Responder {
     let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await.unwrap();
 
     HttpResponse::Ok().body(format!("Hello {}!", user.email))
@@ -107,7 +104,7 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
         "https://accounts.google.com/o/oauth2/v2/auth?\
         client_id={}&redirect_uri={}/auth/google/callback&response_type=code&\
         scope=openid%20email&access_type=offline",
-        state.env_vars.google_client_id, state.env_vars.site_domain
+        state.env.google_client_id, state.env.site_domain
     );
 
     HttpResponse::Found()
@@ -120,11 +117,11 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
     let resp: GoogleTokenResponse = state.client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
-            ("client_id", state.env_vars.google_client_id.as_str()),
-            ("client_secret", state.env_vars.google_client_secret.as_str()),
+            ("client_id", state.env.google_client_id.as_str()),
+            ("client_secret", state.env.google_client_secret.as_str()),
             ("code", query.code.as_str()),
             ("grant_type", "authorization_code"),
-            ("redirect_uri", format!("{}/auth/google/callback", state.env_vars.site_domain).as_str()),
+            ("redirect_uri", format!("{}/auth/google/callback", state.env.site_domain).as_str()),
         ])
         .send().await.unwrap()
         .json().await.unwrap();
@@ -150,11 +147,9 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .secure(false) // TODO Switch to HTTPS
         .same_site(actix_web::cookie::SameSite::Lax)
         .max_age(Duration::weeks(4)).finish();
-    // Ok(HttpResponse::Ok().cookie(cookie).finish())
     Ok(HttpResponse::Found()
         .append_header(("Location", "/"))
         .cookie(cookie)
         .finish()
     )
-
 }
