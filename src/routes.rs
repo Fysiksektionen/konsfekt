@@ -5,12 +5,17 @@ use time::Duration;
 use crate::{auth, database::crud, AppState};
 
 //
-//             API
+//             Pages
 //
 
-#[get("/api")]
+#[get("/")]
 pub async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello backend!")
+}
+
+#[get("/login")]
+pub async fn login() -> impl Responder {
+    HttpResponse::Ok().body("Login Page")
 }
 
 //
@@ -82,5 +87,11 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .secure(false) // TODO Switch to HTTPS
         .same_site(actix_web::cookie::SameSite::Lax)
         .max_age(Duration::weeks(4)).finish();
-    Ok(HttpResponse::Ok().cookie(cookie).finish())
+    // Ok(HttpResponse::Ok().cookie(cookie).finish())
+    Ok(HttpResponse::Found()
+        .append_header(("Location", "/"))
+        .cookie(cookie)
+        .finish()
+    )
+
 }
