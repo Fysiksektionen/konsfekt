@@ -5,7 +5,7 @@ use sqlx::{Result, SqlitePool};
 use time::{Duration, OffsetDateTime};
 use hex;
 
-use crate::AppError;
+use crate::{database::{crud, model}, AppError};
 
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
@@ -36,6 +36,28 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
         }
     }
     None
+}
+
+pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Option<model::User> {
+    let Some(token) = parse_auth_cookie(cookie) else {
+        return None
+    };
+
+    let session = get_session(pool, token.id)
+        .await
+        .unwrap_or(None);
+
+    match session {
+        Some(session) => {
+            let id = session.user;
+            match crud::get_user(pool, Some(id), None).await {
+                Ok(user) => Some(user),
+                Err(_) => None
+            }
+
+        },
+        None => None
+    }
 }
 
 pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<(Session, String), AppError> {

@@ -1,16 +1,84 @@
-use actix_web::{cookie::Cookie, get, web::{self, Data}, HttpResponse, Responder};
+use actix_web::{body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, web::{self, Data}, HttpMessage, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
 use crate::{auth, database::crud, AppState};
 
+const LOGIN_PATH: &str = "/login";
+const PATH_WHITELIST: [&str; 2] = [
+    "/auth/google",
+    "/auth/google/callback",
+];
+
 //
-//             API
+//          Middleware
 //
 
-#[get("/api")]
-pub async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello backend!")
+fn redirect_response(req: ServiceRequest, path: &str) -> ServiceResponse {
+    let response = HttpResponse::Found()
+        .append_header(("Location", path))
+        .finish();
+    req.into_response(response)
+} 
+
+pub async fn session_middleware(
+    state: Data<AppState>,
+    req: ServiceRequest, 
+    next: middleware::Next<BoxBody>
+) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
+    let path = req.path();
+
+    if PATH_WHITELIST.contains(&path) {
+        return next.call(req).await;
+    }
+
+    match auth::parse_auth_cookie(req.cookie(auth::AUTH_COOKIE)) {
+
+        // Cookie not found
+        None => if path != LOGIN_PATH { Ok(redirect_response(req, LOGIN_PATH)) }
+                else { next.call(req).await }
+        
+        Some(token) => {
+            match auth::validate_session(&state.db, token).await {
+
+                // Validation Good
+                Ok(Some(session)) => {
+                    req.extensions_mut().insert(session);
+                    if path == LOGIN_PATH { return Ok(redirect_response(req, "/")) };
+                    next.call(req).await
+                }
+
+                // Validation Bad
+                Ok(None) => {
+                    match req.cookie(auth::AUTH_COOKIE) {
+                        Some(mut cookie) => cookie.make_removal(),
+                        None => {},
+                    }
+                    Ok(redirect_response(req, LOGIN_PATH))
+                },
+                Err(err) => Err(actix_web::error::ErrorInternalServerError(err.to_string())),
+            }
+        }
+    }
+}
+
+//
+//             Pages (temp)
+//
+
+#[get("/")]
+pub async fn hello(req: HttpRequest) -> impl Responder {
+
+    let state = req.app_data::<web::Data<AppState>>().unwrap();
+    // Should never be None
+    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await.unwrap();
+
+    HttpResponse::Ok().body(format!("Hello {}!", user.email))
+}
+
+#[get("/login")]
+pub async fn login() -> impl Responder {
+    HttpResponse::Ok().body("Login Page")
 }
 
 //
@@ -82,5 +150,11 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .secure(false) // TODO Switch to HTTPS
         .same_site(actix_web::cookie::SameSite::Lax)
         .max_age(Duration::weeks(4)).finish();
-    Ok(HttpResponse::Ok().cookie(cookie).finish())
+    // Ok(HttpResponse::Ok().cookie(cookie).finish())
+    Ok(HttpResponse::Found()
+        .append_header(("Location", "/"))
+        .cookie(cookie)
+        .finish()
+    )
+
 }
