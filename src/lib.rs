@@ -1,7 +1,6 @@
 pub mod database;
 pub mod auth;
 pub mod routes;
-pub mod auth_redirect;
 
 use std::{env, fmt};
 

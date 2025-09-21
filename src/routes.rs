@@ -1,11 +1,69 @@
-use actix_web::{cookie::Cookie, get, web::{self, Data}, HttpRequest, HttpResponse, Responder};
+use actix_web::{body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, web::{self, Data}, HttpMessage, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
 use crate::{auth, database::crud, AppState};
 
+const LOGIN_PATH: &str = "/login";
+const PATH_WHITELIST: [&str; 2] = [
+    "/auth/google",
+    "/auth/google/callback",
+];
+
 //
-//             Pages
+//          Middleware
+//
+
+fn redirect_response(req: ServiceRequest, path: &str) -> ServiceResponse {
+    let response = HttpResponse::Found()
+        .append_header(("Location", path))
+        .finish();
+    req.into_response(response)
+} 
+
+pub async fn session_middleware(
+    state: Data<AppState>,
+    req: ServiceRequest, 
+    next: middleware::Next<BoxBody>
+) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
+    let path = req.path();
+
+    if PATH_WHITELIST.contains(&path) {
+        return next.call(req).await;
+    }
+
+    match auth::parse_auth_cookie(req.cookie(auth::AUTH_COOKIE)) {
+
+        // Cookie not found
+        None => if path != LOGIN_PATH { Ok(redirect_response(req, LOGIN_PATH)) }
+                else { next.call(req).await }
+        
+        Some(token) => {
+            match auth::validate_session(&state.db, token).await {
+
+                // Validation Good
+                Ok(Some(session)) => {
+                    req.extensions_mut().insert(session);
+                    if path == LOGIN_PATH { return Ok(redirect_response(req, "/")) };
+                    next.call(req).await
+                }
+
+                // Validation Bad
+                Ok(None) => {
+                    match req.cookie(auth::AUTH_COOKIE) {
+                        Some(mut cookie) => cookie.make_removal(),
+                        None => {},
+                    }
+                    Ok(redirect_response(req, LOGIN_PATH))
+                },
+                Err(err) => Err(actix_web::error::ErrorInternalServerError(err.to_string())),
+            }
+        }
+    }
+}
+
+//
+//             Pages (temp)
 //
 
 #[get("/")]

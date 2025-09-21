@@ -1,6 +1,6 @@
-use konsfekt::{database, routes, AppState, auth_redirect};
+use konsfekt::{database, routes, AppState};
 
-use actix_web::{web::Data, App, HttpServer};
+use actix_web::{middleware, web::Data, App, HttpServer};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -11,7 +11,8 @@ async fn main() -> std::io::Result<()> {
         .expect("Could not initialize database");
     HttpServer::new(move || {
         App::new()
-            .wrap(auth_redirect::AuthRedirect)
+            // .wrap(auth_redirect::AuthRedirect)
+            .wrap(middleware::from_fn(routes::session_middleware))
             .app_data(Data::new(AppState::from(pool.clone())))
             .service(routes::hello) // temp
             .service(routes::login) // temp
