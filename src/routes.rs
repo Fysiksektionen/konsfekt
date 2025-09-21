@@ -1,4 +1,4 @@
-use actix_web::{cookie::Cookie, get, web::{self, Data}, HttpResponse, Responder};
+use actix_web::{cookie::Cookie, get, web::{self, Data}, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
@@ -9,8 +9,13 @@ use crate::{auth, database::crud, AppState};
 //
 
 #[get("/")]
-pub async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello backend!")
+pub async fn hello(req: HttpRequest) -> impl Responder {
+
+    let state = req.app_data::<web::Data<AppState>>().unwrap();
+    // Should never be None
+    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await.unwrap();
+
+    HttpResponse::Ok().body(format!("Hello {}!", user.email))
 }
 
 #[get("/login")]
