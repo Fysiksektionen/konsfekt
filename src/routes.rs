@@ -37,9 +37,9 @@ struct GoogleUserInfo {
 pub async fn google_login(state: Data<AppState>) -> impl Responder {
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
-        client_id={}&redirect_uri={}&response_type=code&\
+        client_id={}&redirect_uri={}/auth/google/callback&response_type=code&\
         scope=openid%20email&access_type=offline",
-        state.env_vars.google_client_id, state.env_vars.google_redirect_uri
+        state.env_vars.google_client_id, state.env_vars.site_domain
     );
 
     HttpResponse::Found()
@@ -56,7 +56,7 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
             ("client_secret", state.env_vars.google_client_secret.as_str()),
             ("code", query.code.as_str()),
             ("grant_type", "authorization_code"),
-            ("redirect_uri", state.env_vars.google_redirect_uri.as_str()),
+            ("redirect_uri", format!("{}/auth/google/callback", state.env_vars.site_domain).as_str()),
         ])
         .send().await.unwrap()
         .json().await.unwrap();

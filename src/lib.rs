@@ -12,7 +12,6 @@ pub struct EnvironmentVariables {
     pub site_domain: String,
     pub google_client_id: String,
     pub google_client_secret: String,
-    pub google_redirect_uri: String,
 }
 
 impl EnvironmentVariables {
@@ -21,7 +20,6 @@ impl EnvironmentVariables {
             site_domain: env::var("SITE_DOMAIN").unwrap(), 
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
-            google_redirect_uri: env::var("GOOGLE_REDIRECT_URI").unwrap(),
         }
     }
 }
