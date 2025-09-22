@@ -1,4 +1,4 @@
-use actix_web::{body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, web::{self, Data}, HttpMessage, HttpRequest, HttpResponse, Responder};
+use actix_web::{body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, web::{self, Data}, HttpMessage, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
@@ -6,17 +6,18 @@ use crate::{auth, database::crud, AppState};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 2] = [
-    "/auth/google",
-    "/auth/google/callback",
+    "/api/auth/google",
+    "/api/auth/google/callback",
 ];
 
 //
 //          Middleware
 //
 
-fn redirect_response(req: ServiceRequest, path: &str) -> ServiceResponse {
+/// Redirects to `path` taking into account where the frontend is served
+fn redirect_response(state: Data<AppState>, req: ServiceRequest, path: &str) -> ServiceResponse {
     let response = HttpResponse::Found()
-        .append_header(("Location", path))
+        .append_header(("Location", format!("{}{}", state.env.frontend_url, path)))
         .finish();
     req.into_response(response)
 } 
@@ -35,7 +36,7 @@ pub async fn session_middleware(
     match auth::parse_auth_cookie(req.cookie(auth::AUTH_COOKIE)) {
 
         // Cookie not found
-        None => if path != LOGIN_PATH { Ok(redirect_response(req, LOGIN_PATH)) }
+        None => if path != LOGIN_PATH { Ok(redirect_response(state, req, LOGIN_PATH)) }
                 else { next.call(req).await }
         
         Some(token) => {
@@ -44,7 +45,7 @@ pub async fn session_middleware(
                 // Validation Good
                 Ok(Some(session)) => {
                     req.extensions_mut().insert(session);
-                    if path == LOGIN_PATH { return Ok(redirect_response(req, "/")) };
+                    if path == LOGIN_PATH { return Ok(redirect_response(state, req, "/")) };
                     next.call(req).await
                 }
 
@@ -54,28 +55,12 @@ pub async fn session_middleware(
                         Some(mut cookie) => cookie.make_removal(),
                         None => {},
                     }
-                    Ok(redirect_response(req, LOGIN_PATH))
+                    Ok(redirect_response(state, req, LOGIN_PATH))
                 },
                 Err(err) => Err(actix_web::error::ErrorInternalServerError(err.to_string())),
             }
         }
     }
-}
-
-//
-//             Pages (temp)
-//
-
-#[get("/")]
-pub async fn hello(state: Data<AppState>, req: HttpRequest) -> impl Responder {
-    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await.unwrap();
-
-    HttpResponse::Ok().body(format!("Hello {}!", user.email))
-}
-
-#[get("/login")]
-pub async fn login() -> impl Responder {
-    HttpResponse::Ok().body("Login Page")
 }
 
 //
@@ -98,11 +83,11 @@ struct GoogleUserInfo {
     id: String, // Unique google_id for each user (doesn't change)
 }
 
-#[get("/auth/google")]
+#[get("/api/auth/google")]
 pub async fn google_login(state: Data<AppState>) -> impl Responder {
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
-        client_id={}&redirect_uri={}/auth/google/callback&response_type=code&\
+        client_id={}&redirect_uri={}/api/auth/google/callback&response_type=code&\
         scope=openid%20email&access_type=offline",
         state.env.google_client_id, state.env.site_domain
     );
@@ -112,7 +97,7 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
         .finish()
 }
 
-#[get("/auth/google/callback")]
+#[get("/api/auth/google/callback")]
 pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthRequest>) -> impl Responder {
     let resp: GoogleTokenResponse = state.client
         .post("https://oauth2.googleapis.com/token")
@@ -121,7 +106,7 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
             ("client_secret", state.env.google_client_secret.as_str()),
             ("code", query.code.as_str()),
             ("grant_type", "authorization_code"),
-            ("redirect_uri", format!("{}/auth/google/callback", state.env.site_domain).as_str()),
+            ("redirect_uri", format!("{}/api/auth/google/callback", state.env.site_domain).as_str()),
         ])
         .send().await.unwrap()
         .json().await.unwrap();
@@ -148,7 +133,7 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .same_site(actix_web::cookie::SameSite::Lax)
         .max_age(Duration::weeks(4)).finish();
     Ok(HttpResponse::Found()
-        .append_header(("Location", "/"))
+        .append_header(("Location", state.env.frontend_url.clone()))
         .cookie(cookie)
         .finish()
     )

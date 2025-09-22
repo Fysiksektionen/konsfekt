@@ -11,7 +11,6 @@ use sqlx::{Pool, Sqlite};
 #[derive(Clone)]
 pub struct EnvironmentVariables {
     pub is_debug: bool,
-    pub lan_server: bool,
     pub frontend_url: String,
     pub site_domain: String,
     pub google_client_id: String,
@@ -29,23 +28,16 @@ pub struct EnvironmentVariables {
 impl EnvironmentVariables {
     pub fn new() -> Self {
         let _ = dotenv::dotenv();
-        let lan_server = env::var("LAN_SERVER").unwrap_or("false".into()).parse::<bool>().unwrap_or(false);
          
-        let ip = if lan_server { 
-            local_ip_address::local_ip().expect("Failed to get ip address").to_string()
-        } else {
-            "127.0.0.1".to_string()
-        };
         let is_debug = cfg!(debug_assertions);
         EnvironmentVariables {
             is_debug,
-            lan_server,
             frontend_url: match is_debug { 
-                true => format!("http://{ip}:5173"),
+                true => format!("http://127.0.0.1:5173"),
                 false => "/".to_string()
             },
             site_domain: match is_debug {
-                true => format!("http://{ip}:8080"),
+                true => format!("http://127.0.0.1:8080"),
                 false => env::var("SITE_DOMAIN").unwrap()
             },
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),

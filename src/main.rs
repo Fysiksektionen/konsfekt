@@ -12,9 +12,7 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Could not initialize database");
 
-    if env.is_debug {
-        println!("Server running on {}", env.site_domain)
-    }
+    println!("Server running on {}", env.site_domain);
 
     let env_clone = env.clone(); // To be used in closure
     HttpServer::new(move || {
@@ -32,8 +30,6 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::from_fn(routes::session_middleware))
             .app_data(Data::new(AppState::from(pool.clone(), env_clone.clone())))
             .wrap(cors)
-            .service(routes::hello) // temp
-            .service(routes::login) // temp
             .service(routes::google_login)
             .service(routes::google_callback);
         if env.is_debug {
@@ -42,7 +38,7 @@ async fn main() -> std::io::Result<()> {
             app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
         }
     })
-    .bind((if env.is_debug && !env.lan_server { "127.0.0.1" } else { "0.0.0.0"}, 8080))?
+    .bind((if env.is_debug { "127.0.0.1" } else { "0.0.0.0" }, 8080))?
     .run()
     .await
 }
