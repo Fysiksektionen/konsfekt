@@ -6,7 +6,7 @@ Dependencies:
 
 ### Setup
 Get Google OAuth client credentials from [Google](https://console.developers.google.com/). You will need a client id and a client secret.
-Make sure to add `http://127.0.0.1:8080` as an Authorized JavaScript origin and `http://127.0.0.1:8080/auth/google/callback`
+Make sure to add `http://127.0.0.1:8080` as an Authorized JavaScript origin and `http://127.0.0.1:8080/api/auth/google/callback`
 as an Authorized redirect URI.
 
 > Due to a limited set of authorized origins Google allows, simple developing is limited to `localhost` 
