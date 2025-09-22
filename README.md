@@ -3,27 +3,41 @@ Dependencies:
 - rust
 - npm
 
+
 ### Setup
 Get Google OAuth client credentials from [Google](https://console.developers.google.com/). You will need a client id and a client secret.
+Make sure to add `http://127.0.0.1:8080` as an Authorized JavaScript origin and `http://127.0.0.1:8080/auth/google/callback`
+as an Authorized redirect URI.
+
+> Due to a limited set of authorized origins Google allows, simple developing is limited to `localhost` 
+unless using a tunneling service.
 
 Create a `.env` file with the following fields
-- `SITE_DOMAIN` - localhost/LAN ip
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 
-Make sure to add the needed authorized URIs to your Google OAuth client. Authorized JavaScript origin should be set to the `SITE_DOMAIN`
-and the Authorized redirect URI `{SITE_DOMAIN}/auth/google/callback`.
+### Frontend
+If you want a live preview when developing the frontend you need to run it separately from the backend. To do this
+set the `STATIC_FRONTEND` environment variable to `false`.
 
-### Build
-Build frontend using `npm run build` inside the `frontend` directory.
+If a static frontend should be used it will have to be compiled with the following command inside the `frontend` directory:
 
-Build and run web server with `cargo run`.
+```npm run build```
+
+### Running
+Backend can be run using:
+
+```cargo run```
+
+For separate frontend, run
+
+```npm run dev```
+
+from within the `frontend` directory
 
 ## Docker
 Dependencies:
 - docker (docker compose)
-
-Follow the steps found in the [dev setup](#setup) to get started.
 
 Run the container with `docker compose up --build` (`--build` flag only needed the first time)
 

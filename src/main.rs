@@ -11,8 +11,12 @@ async fn main() -> std::io::Result<()> {
     let pool = database::init_database()
         .await
         .expect("Could not initialize database");
-
-    println!("Server running on {}", env.site_domain);
+    
+    if env.static_frontend {
+        println!("Web server running at {}", env.site_domain);
+    } else {
+        print!("Backend running at {}\nFrontend needs to be served separately\n", env.site_domain)
+    }
 
     let env_clone = env.clone(); // To be used in closure
     HttpServer::new(move || {
@@ -32,10 +36,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .service(routes::google_login)
             .service(routes::google_callback);
-        if env.is_debug {
-            app 
-        } else {
+        if env.static_frontend {
             app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
+        } else {
+            app 
         }
     })
     .bind((if env.is_debug { "127.0.0.1" } else { "0.0.0.0" }, 8080))?
