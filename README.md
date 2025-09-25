@@ -35,6 +35,8 @@ For separate frontend, run
 
 from within the `frontend` directory
 
+> NOTE: Redirects do not work during separate frontend. If you need a valid session to do something, please go to `/login` manually and log in.
+
 ## Docker
 Dependencies:
 - docker (docker compose)
