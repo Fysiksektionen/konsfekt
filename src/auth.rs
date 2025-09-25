@@ -38,25 +38,19 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
-pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Option<model::User> {
+pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::User, AppError> {
     let Some(token) = parse_auth_cookie(cookie) else {
-        return None
+        return Err(AppError::GenericError(String::from("Couldn't parse cookie")));
     };
 
-    let session = get_session(pool, token.id)
-        .await
-        .unwrap_or(None);
+    let session = get_session(pool, token.id).await?;
 
     match session {
         Some(session) => {
             let id = session.user;
-            match crud::get_user(pool, Some(id), None).await {
-                Ok(user) => Some(user),
-                Err(_) => None
-            }
-
+            return crud::get_user(pool, Some(id), None).await;
         },
-        None => None
+        None => Err(AppError::SessionError(String::from("Unable to get session")))
     }
 }
 
