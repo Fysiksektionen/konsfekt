@@ -1,6 +1,7 @@
 pub mod database;
 pub mod auth;
 pub mod routes;
+pub mod utils;
 
 use std::{env, fmt};
 
@@ -29,18 +30,21 @@ pub struct EnvironmentVariables {
 impl EnvironmentVariables {
     pub fn new() -> Self {
         let _ = dotenv::dotenv();
-        let static_frontend = env::var("STATIC_FRONTEND").unwrap_or("true".into()).parse::<bool>().unwrap_or(false);
+        let mut static_frontend = env::var("STATIC_FRONTEND").unwrap_or("true".into()).parse::<bool>().unwrap_or(false);
         let is_debug = cfg!(debug_assertions);
+        if !is_debug {
+            static_frontend = true;
+        }
         EnvironmentVariables {
             is_debug,
             static_frontend,
             frontend_url: match static_frontend { 
-                true => "/".to_string(),
-                false => format!("http://127.0.0.1:5173")
+                true => String::from("/"),
+                false => String::from("http://127.0.0.1:5173"),
             },
             site_domain: match is_debug {
-                true => format!("http://127.0.0.1:8080"),
-                false => env::var("SITE_DOMAIN").unwrap()
+                true => String::from("http://127.0.0.1:8080"),
+                false => env::var("SITE_DOMAIN").unwrap(),
             },
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
@@ -68,7 +72,11 @@ impl AppState {
 pub enum AppError {
     ClientError(reqwest::Error),
     DatabaseError(sqlx::Error),
-    GenericError(String)
+    GenericError(String),
+
+    SessionError(String),
+
+    
 }
 
 impl ResponseError for AppError {
@@ -76,8 +84,10 @@ impl ResponseError for AppError {
         let (status, message) = match &self {
             Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
             Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}")),
-            Self::GenericError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("GenericError: {e}"))
+            Self::GenericError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("GenericError: {e}")),
+            Self::SessionError(e) => (StatusCode:: INTERNAL_SERVER_ERROR, format!("SessionError: {e}"))
         };
+
         HttpResponse::build(status).body(message)
     }
 }
@@ -87,7 +97,8 @@ impl fmt::Display for AppError {
         match self {
             AppError::ClientError(err) => write!(f, "Client error: {}", err),
             AppError::DatabaseError(err) => write!(f, "Database error: {}", err),
-            AppError::GenericError(err) => write!(f, "Generic error: {}", err)
+            AppError::GenericError(err) => write!(f, "Generic error: {}", err),
+            AppError::SessionError(err) => write!(f, "Session error: {}", err),
         }
     }
 }
