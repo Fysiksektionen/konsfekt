@@ -1,5 +1,5 @@
 use actix_cors::Cors;
-use actix_web::http;
+use actix_web::{http, web};
 use konsfekt::{database, routes, AppState, EnvironmentVariables};
 
 use actix_web::{middleware, web::Data, App, HttpServer};
@@ -35,11 +35,13 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(AppState::from(pool.clone(), env_clone.clone())))
             .wrap(cors)
             .service(routes::google_login)
-            .service(routes::google_callback);
+            .service(routes::google_callback)
+            .service(routes::get_user)
+        ;
         if env.static_frontend {
             app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
         } else {
-            app 
+            app
         }
     })
     .bind((if env.is_debug { "127.0.0.1" } else { "0.0.0.0" }, 8080))?
