@@ -1,5 +1,5 @@
 use actix_cors::Cors;
-use actix_web::{http, web};
+use actix_web::http;
 use konsfekt::{database, routes, AppState, EnvironmentVariables};
 
 use actix_web::{middleware, web::Data, App, HttpServer};

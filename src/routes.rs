@@ -1,10 +1,8 @@
-use core::sync;
-
 use actix_web::{body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, web::{self, Data}, HttpMessage, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{auth, database::{crud, model::User}, utils::{self, get_path}, AppError, AppState};
+use crate::{auth, database::crud, utils::{self, get_path}, AppError, AppState};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 2] = [
@@ -35,7 +33,6 @@ pub async fn session_middleware(
         return next.call(req).await;
     }
     
-    println!("{}", path);
     match auth::parse_auth_cookie(req.cookie(auth::AUTH_COOKIE)) {
 
         // Cookie not found
@@ -79,7 +76,6 @@ struct UserResponse {
 
 #[get("/api/get_user")]
 pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<UserResponse>, AppError> {
-
     let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
     
     let user_response = UserResponse {
