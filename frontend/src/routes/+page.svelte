@@ -1,4 +1,5 @@
 <script lang="ts">
+    import ProductScroller from '$lib/components/ProductScroller.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
 	import type { PageProps } from './$types';
 
@@ -15,8 +16,17 @@
   </div>
   <Button class="text-2xl text-card-foreground" variant="secondary">Lägg till pengar</Button>
 
-  <div>
+  <div class="flex w-4/5 flex-col items-center gap-2">
+    <div class="flex w-full justify-start">
+      <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Nyligen köpta produkter</h3>
+    </div>
+    <ProductScroller/>
+  </div>
 
+  <div class="flex w-4/5 flex-col items-center gap-2">
+    <div class="flex w-full justify-start">
+      <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Alla produkter</h3>
+    </div>
   </div>
 </div>
 
