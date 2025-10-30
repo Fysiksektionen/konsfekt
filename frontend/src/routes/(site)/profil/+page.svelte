@@ -44,10 +44,14 @@
       >
     </Item.Content>
     <Item.Actions>
-      <Button variant="outline" size="sm">Logga in med ny Gmail</Button>
+      <Button variant="outline" class="hover:bg-primary" size="sm">Logga in med ny Gmail</Button>
     </Item.Actions>
   </Item.Root>
-  
+
+  <Button class="text-card-foreground">
+    Logga ut
+  </Button> 
+
   <div class="w-full">
    <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Köp- och insättningshistorik</h3> 
     <DataTable data={transactions} {columns}/>
