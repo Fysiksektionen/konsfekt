@@ -1,5 +1,5 @@
 <script lang="ts">
-    import ProductScroller from '$lib/components/ProductScroller.svelte';
+  import ProductScroller from '$lib/components/ProductScroller.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
 	import type { PageProps } from './$types';
 
@@ -7,7 +7,7 @@
 </script>
 
 
-<div class="flex flex-col w-full items-center pt-15 gap-5">
+<div class="flex flex-col w-full items-center gap-5">
   <div class="flex w-4/5 max-w-[400px]">
   </div>
   <div class="w-4/5 flex justify-between gap-3 p-4 bg-card text-card-foreground items-center rounded-xl border-primary border-4 max-w-[400px]">
