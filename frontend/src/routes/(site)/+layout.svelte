@@ -5,7 +5,7 @@
   import { page } from '$app/state';
 </script>
 
-<nav class="fixed items-center h-16 justify-between text-secondary-foreground top-0 text-2xl p-2 flex w-full bg-background border-b border-primary"> <div class="flex items-center gap-5">
+<nav class="fixed items-center h-16 z-10 justify-between text-secondary-foreground top-0 text-2xl p-2 flex w-full bg-background border-b border-primary"> <div class="flex items-center gap-5">
     <Button class="text-3xl bg-primary text-background rounded-md p-2 text-shadow-2xs text-shadow-accent" href="/">
       <p class="text-3xl bg-primary text-background rounded-md p-2 text-shadow-2xs text-shadow-accent">Konsfekt</p>
     </Button>

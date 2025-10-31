@@ -8,6 +8,8 @@
   import { columns } from '$lib/components/transactions/columns';
 
 	let { data }: PageProps = $props();
+
+  let username = $state(data.user.name);
   
   export const transactions: Transaction[] = [
    {
@@ -32,19 +34,23 @@
   </h1>
   
   <form class="flex w-full max-w-sm items-center space-x-2">
-   <Input type="name" placeholder="Ditt namn" />
-   <Button type="submit" class="text-card-foreground" variant="secondary">Byt namn</Button>
+   <Input bind:value={username} type="name" placeholder='Ditt namn'/>
+   {#if username}
+     <Button type="submit" class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
+   {:else}
+     <Button type="submit" disabled class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
+   {/if}
   </form>
 
   <Item.Root variant="outline">
     <Item.Content>
       <Item.Title>Byte av inloggningsmail</Item.Title>
-      <Item.Description
-        >Tryck här för att byta till en annan Gmail address.</Item.Description
-      >
+      <Item.Description>
+        Nuvarande gmail:<br>{data.user.email}
+      </Item.Description>
     </Item.Content>
     <Item.Actions>
-      <Button variant="outline" class="hover:bg-primary" size="sm">Logga in med ny Gmail</Button>
+      <Button variant="outline" class="hover:bg-primary" size="sm">Logga in med annan Gmail</Button>
     </Item.Actions>
   </Item.Root>
 
@@ -54,9 +60,11 @@
 
   <div class="w-full">
    <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Köp- och insättningshistorik</h3> 
+    <div class="text-muted-foreground flex-1 pt-3 text-md">
+      Totalt saldo: {data.user.balance}kr
+    </div>
     <DataTable data={transactions} {columns}/>
   </div>
-
 </div>
  
 
