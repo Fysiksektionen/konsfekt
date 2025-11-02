@@ -6,6 +6,8 @@
   import DataTable from '$lib/components/transactions/data-table.svelte';
   import type { Transaction } from '$lib/components/transactions/columns';
   import { columns } from '$lib/components/transactions/columns';
+  import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
+  import Switch from '$lib/components/ui/switch/switch.svelte';
 
 	let { data }: PageProps = $props();
 
@@ -32,7 +34,24 @@
   <h1 class="scroll-m-20 text-4xl mb-3 lg:mt-5 font-extrabold tracking-tight lg:text-5xl">
     Min profil
   </h1>
-  
+
+  <div class="flex items-center gap-3">
+   <p>Byt mellan mörkt och ljust läge</p> 
+   <DarkModeToggle/>
+  </div>
+
+  <Item.Root variant="outline" class="max-w-[500px]">
+    <Item.Content>
+      <Item.Title>Delta i topplistan</Item.Title>
+      <Item.Description>
+        Genom att delta i topplistan kan ditt namn visas på skärmen i Konsulatet
+      </Item.Description>
+    </Item.Content>
+    <Item.Actions>
+      <Switch/>
+    </Item.Actions>
+  </Item.Root>
+
   <form class="flex w-full flex-col max-w-sm space-x-2">
    <div class="flex gap-3">
     <Input bind:value={username} type="name" placeholder='Ditt namn'/>
@@ -42,7 +61,7 @@
       <Button type="submit" disabled class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
     {/if}
    </div>
-   <p class="text-muted-foreground text-sm pl-2 pt-1">Detta namn kan ses av andra</p>
+   <p class="text-muted-foreground text-sm pl-2 pt-1">Detta namn kan ses av andra på topplistan</p>
   </form>
 
   <Item.Root variant="outline">
@@ -61,11 +80,20 @@
     Logga ut
   </Button> 
 
-  <div class="w-full">
-   <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Köp- och insättningshistorik</h3> 
-    <div class="text-muted-foreground flex-1 pt-3 text-md">
-      Totalt saldo: {data.user.balance}kr
-    </div>
-    <DataTable data={transactions} {columns}/>
+  <div class="flex flex-col w-full gap-2">
+    <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Köp- och insättningshistorik</h3> 
+    <Item.Root variant="outline" class="max-w-[500px]">
+      <Item.Content>
+        <Item.Title>Anonyma köp</Item.Title>
+        <Item.Description>
+          Vill du inte att dina köp ska kopplas till ditt namn?
+        </Item.Description>
+      </Item.Content>
+      <Item.Actions>
+        <Switch/>
+      </Item.Actions>
+    </Item.Root>
+
+    <DataTable data={transactions} {columns} balance={data.user.balance}/>
   </div>
 </div>

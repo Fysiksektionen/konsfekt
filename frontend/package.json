@@ -43,6 +43,7 @@
 	"dependencies": {
 		"@tailwindcss/vite": "^4.1.16",
 		"d3-scale": "^4.0.2",
+		"mode-watcher": "^1.1.0",
 		"tailwindcss": "^4.1.16"
 	}
 }

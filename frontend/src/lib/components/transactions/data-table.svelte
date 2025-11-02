@@ -20,7 +20,7 @@
    data: TData[];
    columns: ColumnDef<TData, TValue>[];
  };
- let { columns, data }: DataTableProps<TData, TValue> = $props();
+ let { columns, data, balance }: DataTableProps<TData, TValue> & {balance: Number} = $props();
  
  let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
  let sorting = $state<SortingState>([]);
@@ -82,7 +82,7 @@
 </script>
  
 <div class="w-full">
-  <div class="flex items-center py-4">
+  <div class="flex items-center py-4 gap-3">
     <Input
       placeholder="Sök efter transaktion..."
       value={(table.getColumn("description")?.getFilterValue() as string) ?? ""}
@@ -93,6 +93,9 @@
       }}
       class="max-w-sm"
     />
+    <div class="text-muted-foreground flex-1 text-md">
+      Totalt saldo: {balance}kr
+    </div>
   </div>
   <div class="rounded-md border">
     <Table.Root>
