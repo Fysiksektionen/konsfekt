@@ -33,13 +33,16 @@
     Min profil
   </h1>
   
-  <form class="flex w-full max-w-sm items-center space-x-2">
-   <Input bind:value={username} type="name" placeholder='Ditt namn'/>
-   {#if username}
-     <Button type="submit" class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
-   {:else}
-     <Button type="submit" disabled class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
-   {/if}
+  <form class="flex w-full flex-col max-w-sm space-x-2">
+   <div class="flex gap-3">
+    <Input bind:value={username} type="name" placeholder='Ditt namn'/>
+    {#if username}
+      <Button type="submit" class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
+    {:else}
+      <Button type="submit" disabled class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
+    {/if}
+   </div>
+   <p class="text-muted-foreground text-sm pl-2 pt-1">Detta namn kan ses av andra</p>
   </form>
 
   <Item.Root variant="outline">
@@ -66,5 +69,3 @@
     <DataTable data={transactions} {columns}/>
   </div>
 </div>
- 
-
