@@ -14,7 +14,7 @@ export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
 export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
 
 
-export async function get_user(fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
+export async function getUser(fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
     const response = await fetch("/api/get_user");
     if (response.status == 401) {
         console.log(response)
@@ -27,5 +27,29 @@ export async function get_user(fetch: (input: RequestInfo | URL, init?: RequestI
     return {
         user: await response.json()
     }
+}
 
+type SearchStore<T extends object> = {
+    data: T[],
+    filtered: T[],
+    searchBy: (keyof T)[],
+}
+
+export function createSearchStore<T extends object>(data: T[], searchBy: (keyof T)[]): SearchStore<T> {
+    return {
+        data: data,
+        filtered: data,
+        searchBy,
+    }
+}
+
+export function searchData<T extends object>(store: SearchStore<T>, searchTerm: string) {
+    store.filtered = store.data.filter(item => {
+        for (var key of store.searchBy) {
+            if (String(item[key]).toLowerCase().includes(searchTerm)) {
+                return true; 
+            }
+        }
+        return false;
+    })     
 }

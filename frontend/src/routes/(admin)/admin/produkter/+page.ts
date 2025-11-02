@@ -1,6 +1,6 @@
 import type { PageLoad } from './$types';
-import { getUser } from '$lib/utils';
 
 export const load: PageLoad = async ({ fetch }) => {
-    return getUser(fetch)
+    return fetch('https://dummyjson.com/products')
+        .then(res => res.json())
 };
