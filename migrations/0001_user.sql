@@ -3,7 +3,8 @@ CREATE TABLE User (
     name TEXT,
     email TEXT NOT NULL,
     google_id TEXT UNIQUE,
-    balance REAL NOT NULL DEFAULT 0
+    balance REAL NOT NULL DEFAULT 0,
+    role TEXT NOT NULL
 );
 
 -- Session schema based on lucia-auth

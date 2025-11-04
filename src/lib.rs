@@ -3,11 +3,12 @@ pub mod auth;
 pub mod routes;
 pub mod utils;
 
-use std::{env, fmt};
+use std::{collections::HashMap, env, fmt};
 
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use reqwest::Client;
-use sqlx::{Pool, Sqlite};
+use serde::{Deserialize, Serialize};
+use sqlx::{Pool, Sqlite, Type};
 
 #[derive(Clone)]
 pub struct EnvironmentVariables {
@@ -17,6 +18,7 @@ pub struct EnvironmentVariables {
     pub site_domain: String,
     pub google_client_id: String,
     pub google_client_secret: String,
+    pub role_table_path: String,
 }
 
 // Prod (always 0.0.0.0)
@@ -48,7 +50,55 @@ impl EnvironmentVariables {
             },
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
+            role_table_path: env::var("ROLE_TABLE_PATH").unwrap(),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, sqlx::Type)]
+#[sqlx(type_name = "role", rename_all = "lowercase")]
+pub enum Role {
+    None,
+    User,
+    Bot,
+    Admin,
+}
+
+#[derive(Clone)]
+pub struct RoleTable {
+    role_table: HashMap<String, Role>,
+}
+
+impl RoleTable {
+    pub fn from(file_path: &str) -> Self {
+
+        match utils::read_to_string(&file_path) {
+            Ok(json) => match serde_json::from_str(&json) {
+                Ok(role) => RoleTable { role_table: role },
+                Err(_) => RoleTable::empty()
+            }
+            Err(_) => RoleTable::empty()
+        }
+    }
+
+    pub fn empty() -> Self{
+        // should log warning here
+        RoleTable { role_table: HashMap::new() }
+    }
+
+    pub fn get(&self, path: &str) -> Option<Role> {
+        self.role_table.get(path).cloned()
+    }
+
+    pub fn check_access(&self, path: &str, user_perm: Role) -> bool {
+        match self.get(path) {
+            Some(perm) => user_perm == perm,
+            None => true // assume true if not in table
+        }
+    }
+
+    pub fn contains(&self, path: &str) -> bool {
+        self.role_table.contains_key(path)
     }
 }
 
@@ -56,14 +106,16 @@ pub struct AppState {
     pub db: Pool<Sqlite>,
     pub client: Client,
     pub env: EnvironmentVariables,
+    pub role_table: RoleTable,
 }
 
 impl AppState {
-    pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables) -> Self {
+    pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables, role_table: RoleTable) -> Self {
         AppState {
             db: pool,
             client: reqwest::Client::new(),
-            env: env_vars
+            env: env_vars,
+            role_table: role_table
         }
     }
 }

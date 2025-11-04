@@ -1,12 +1,13 @@
 use actix_cors::Cors;
 use actix_web::http;
-use konsfekt::{database, routes, AppState, EnvironmentVariables};
+use konsfekt::{database, routes, AppState, EnvironmentVariables, RoleTable};
 
 use actix_web::{middleware, web::Data, App, HttpServer};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let env = EnvironmentVariables::new();
+    let role = RoleTable::from(&env.role_table_path);
 
     let pool = database::init_database()
         .await
@@ -32,7 +33,8 @@ async fn main() -> std::io::Result<()> {
         }
         let app = App::new()
             .wrap(middleware::from_fn(routes::session_middleware))
-            .app_data(Data::new(AppState::from(pool.clone(), env_clone.clone())))
+            .wrap(middleware::from_fn(routes::permission_middleware))
+            .app_data(Data::new(AppState::from(pool.clone(), env_clone.clone(), role.clone())))
             .wrap(cors)
             .service(routes::google_login)
             .service(routes::google_callback)

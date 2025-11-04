@@ -1,16 +1,16 @@
 use sqlx::{Result, SqlitePool};
 
-use crate::AppError;
+use crate::{AppError, Role};
 
 use super::model::User;
 
 pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<User, AppError> {
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO User (name, email, google_id, balance)
-        VALUES (?, ?, ?, 0)
+        INSERT INTO User (name, email, google_id, balance, role)
+        VALUES (?, ?, ?, 0, ?)
         RETURNING id
-        "#).bind(name).bind(email).bind(google_id).fetch_one(pool)
+        "#).bind(name).bind(email).bind(google_id).bind(Role::User).fetch_one(pool)
     .await?;
 
     Ok(User { 
@@ -18,14 +18,15 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
         name: name.map(str::to_owned), 
         email: email.to_string(), 
         google_id: google_id.to_string(), 
-        balance: 0.0
+        balance: 0.0,
+        role: Role::User
     })
 }
 
 pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<User, AppError> {
     let user: User = sqlx::query_as(
         r#"
-        SELECT id, name, email, google_id, balance 
+        SELECT id, name, email, google_id, balance, role
         FROM User 
         WHERE id = ? OR google_id = ?
         "#).bind(user_id).bind(google_id).fetch_one(pool).await?;

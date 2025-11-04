@@ -1,3 +1,5 @@
+use crate::Role;
+
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct User {
@@ -6,4 +8,5 @@ pub struct User {
     pub email: String,
     pub google_id: String,
     pub balance: f32,
+    pub role: Role,
 }
