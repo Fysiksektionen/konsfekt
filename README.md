@@ -35,7 +35,11 @@ For separate frontend, run
 
 from within the `frontend` directory
 
-> NOTE: Redirects do not work during separate frontend. If you need a valid session to do something, please go to `/login` manually and log in.
+> NOTE: Middleware will not be applied to frontend routes (/) when serving the frontend separately. This means that some redirects and permission checks won't work.
+
+> If you need a valid session to do something, please go to `/login` manually and log in. 
+
+> E.g `/admin` will be accessible with a normal account.
 
 ## Docker
 Dependencies:

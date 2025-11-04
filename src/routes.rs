@@ -5,7 +5,9 @@ use time::Duration;
 use crate::{auth, database::crud, utils::{self, get_path}, AppError, AppState, Role};
 
 const LOGIN_PATH: &str = "/login";
-const PATH_WHITELIST: [&str; 2] = [
+const ADMIN_PATH: &str = "/admin";
+const PATH_WHITELIST: [&str; 3] = [
+    LOGIN_PATH,
     "/api/auth/google",
     "/api/auth/google/callback",
 ];
@@ -44,8 +46,17 @@ pub async fn session_middleware(
 
                 // Validation Good
                 Ok(Some(session)) => {
+                    let user_id = session.user;
                     req.extensions_mut().insert(session);
                     if path == LOGIN_PATH { return Ok(redirect_response(state, req, "/")) };
+                    if path == ADMIN_PATH {
+                        let is_normal_user = crud::get_user(&state.db, Some(user_id), None).await
+                            .ok().map(|user| user.role)
+                            .flatten().is_none();
+                        if is_normal_user {
+                            return Err(actix_web::error::ErrorUnauthorized("No role found"));
+                        }
+                    }
                     next.call(req).await
                 }
 
@@ -92,7 +103,7 @@ struct UserResponse {
     name: Option<String>,
     email: String,
     balance: f32,
-    role: Role
+    role: Option<Role>
 }
 
 #[get("/api/get_user")]
@@ -103,9 +114,8 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
         name: user.name,
         email: user.email,
         balance: user.balance,
-        role: user.role,
+        role: user.role
     };
-
     Ok(web::Json(user_response))
 }
 

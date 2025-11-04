@@ -15,6 +15,15 @@ export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?:
 
 
 export async function getUser(fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
+    if (import.meta.env.SSR) {
+        return {
+            user: {
+                id: -1,
+                email: "",
+                balance: 0
+            }
+        }
+    }
     const response = await fetch("/api/get_user");
     if (response.status == 401) {
         console.log(response)

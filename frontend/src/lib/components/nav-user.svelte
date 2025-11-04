@@ -6,6 +6,9 @@
 	let { user }: { user: { name: string; email: string } } = $props();
 
   const initials = user.email.split(".").slice(0, 2).map(n => n.at(0)?.toUpperCase()).join("")
+  // BUG: initials will not be accurate if email doesnt have . before @. For example:
+  // firstname@gmail.com will have intials FC for (f)irstname (c)om
+  // TODO: Fix if Gmails outside Fysiksektionen is allowed
   const emailName = user.email.split("@").at(0)
 </script>
 
