@@ -5,7 +5,8 @@ use time::Duration;
 use crate::{auth, database::crud, utils::{self, get_path}, AppError, AppState};
 
 const LOGIN_PATH: &str = "/login";
-const PATH_WHITELIST: [&str; 2] = [
+const PATH_WHITELIST: [&str; 3] = [
+    LOGIN_PATH,
     "/api/auth/google",
     "/api/auth/google/callback",
 ];
@@ -83,7 +84,6 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
         email: user.email,
         balance: user.balance,
     };
-
     Ok(web::Json(user_response))
 }
 

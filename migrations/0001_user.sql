@@ -3,6 +3,7 @@ CREATE TABLE User (
     name TEXT,
     email TEXT NOT NULL,
     google_id TEXT UNIQUE,
+    role TEXT CHECK(role IN ('admin', 'maintainer')), -- can be null
     balance REAL NOT NULL DEFAULT 0
 );
 
