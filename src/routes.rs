@@ -5,7 +5,6 @@ use time::Duration;
 use crate::{auth, database::crud, utils::{self, get_path}, AppError, AppState, Role};
 
 const LOGIN_PATH: &str = "/login";
-const ADMIN_PATH: &str = "/admin";
 const PATH_WHITELIST: [&str; 3] = [
     LOGIN_PATH,
     "/api/auth/google",
@@ -46,17 +45,8 @@ pub async fn session_middleware(
 
                 // Validation Good
                 Ok(Some(session)) => {
-                    let user_id = session.user;
                     req.extensions_mut().insert(session);
                     if path == LOGIN_PATH { return Ok(redirect_response(state, req, "/")) };
-                    if path == ADMIN_PATH {
-                        let is_normal_user = crud::get_user(&state.db, Some(user_id), None).await
-                            .ok().map(|user| user.role)
-                            .flatten().is_none();
-                        if is_normal_user {
-                            return Err(actix_web::error::ErrorUnauthorized("No role found"));
-                        }
-                    }
                     next.call(req).await
                 }
 
@@ -79,18 +69,15 @@ pub async fn permission_middleware(
     req: ServiceRequest,
     next: middleware::Next<BoxBody>
 ) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
-
-
     let path = req.path();
-    if !state.role_table.contains(path) {
+    if !state.permission_table.contains(path) {
         return next.call(req).await;
     }
 
     let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
-
-    match state.role_table.check_access(req.path(), user.role) {
+    match state.permission_table.check_access(req.path(), user.role) {
         true => next.call(req).await,
-        false => Err(actix_web::error::ErrorInternalServerError("Access Denied")), // Borde ge access denied
+        false => Err(actix_web::error::ErrorUnauthorized("Access Denied")),
     }
 }
 
@@ -103,7 +90,7 @@ struct UserResponse {
     name: Option<String>,
     email: String,
     balance: f32,
-    role: Option<Role>
+    role: Role
 }
 
 #[get("/api/get_user")]

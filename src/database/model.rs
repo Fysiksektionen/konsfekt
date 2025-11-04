@@ -7,5 +7,5 @@ pub struct User {
     pub email: String,
     pub google_id: String,
     pub balance: f32,
-    pub role: Option<Role>,
+    pub role: Role,
 }

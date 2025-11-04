@@ -3,12 +3,12 @@ pub mod auth;
 pub mod routes;
 pub mod utils;
 
-use std::{collections::HashMap, env, fmt};
+use std::{collections::HashMap, env, fmt, fs};
 
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Sqlite, Type};
+use sqlx::{Pool, Sqlite};
 
 #[derive(Clone)]
 pub struct EnvironmentVariables {
@@ -18,7 +18,7 @@ pub struct EnvironmentVariables {
     pub site_domain: String,
     pub google_client_id: String,
     pub google_client_secret: String,
-    pub role_table_path: String,
+    pub permission_table_path: String,
 }
 
 // Prod (always 0.0.0.0)
@@ -50,55 +50,53 @@ impl EnvironmentVariables {
             },
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
-            role_table_path: env::var("ROLE_TABLE_PATH").unwrap(),
+            permission_table_path: env::var("PERMISSION_TABLE_PATH").unwrap(),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Deserialize, Serialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "role", rename_all = "lowercase")]
+/// Discriminants: permission levels
 pub enum Role {
-    None,
-    User,
-    Bot,
-    Admin,
+    User = 0,
+    Maintainer = 1,
+    Bot = 2,
+    Admin = 3,
 }
 
 #[derive(Clone)]
-pub struct RoleTable {
-    role_table: HashMap<String, Role>,
+pub struct PermissionTable {
+    table: HashMap<String, Role>,
 }
 
-impl RoleTable {
+impl PermissionTable {
     pub fn from(file_path: &str) -> Self {
-
-        match utils::read_to_string(&file_path) {
-            Ok(json) => match serde_json::from_str(&json) {
-                Ok(role) => RoleTable { role_table: role },
-                Err(_) => RoleTable::empty()
-            }
-            Err(_) => RoleTable::empty()
-        }
+        // We need permissions
+        let json_str = fs::read_to_string(&file_path).unwrap();
+        let json: HashMap<String, Role> = serde_json::from_str(&json_str).unwrap();
+        return PermissionTable { table: json };
     }
 
-    pub fn empty() -> Self{
+    pub fn empty() -> Self {
         // should log warning here
-        RoleTable { role_table: HashMap::new() }
+        PermissionTable { table: HashMap::new() }
     }
 
     pub fn get(&self, path: &str) -> Option<Role> {
-        self.role_table.get(path).cloned()
+        self.table.get(path).cloned()
     }
 
     pub fn check_access(&self, path: &str, user_perm: Role) -> bool {
         match self.get(path) {
-            Some(perm) => user_perm == perm,
+            Some(perm) => user_perm >= perm, // greater than or equal permission level
             None => true // assume true if not in table
         }
     }
 
     pub fn contains(&self, path: &str) -> bool {
-        self.role_table.contains_key(path)
+        self.table.contains_key(path)
     }
 }
 
@@ -106,16 +104,16 @@ pub struct AppState {
     pub db: Pool<Sqlite>,
     pub client: Client,
     pub env: EnvironmentVariables,
-    pub role_table: RoleTable,
+    pub permission_table: PermissionTable,
 }
 
 impl AppState {
-    pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables, role_table: RoleTable) -> Self {
+    pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables) -> Self {
         AppState {
             db: pool,
             client: reqwest::Client::new(),
-            env: env_vars,
-            role_table: role_table
+            env: env_vars.clone(),
+            permission_table: PermissionTable::from(&env_vars.permission_table_path)
         }
     }
 }
