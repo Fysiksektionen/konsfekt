@@ -1,8 +1,8 @@
-use actix_web::{body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, web::{self, Data}, HttpMessage, HttpRequest, HttpResponse, Responder};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{auth, database::crud, utils::{self, get_path}, AppError, AppState, Role};
+use crate::{AppError, AppState, Role, auth, database::{self, crud}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -69,12 +69,17 @@ pub async fn permission_middleware(
     req: ServiceRequest,
     next: middleware::Next<BoxBody>
 ) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
+    
     let path = req.path();
     if !state.permission_table.contains(path) {
         return next.call(req).await;
     }
 
-    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
+    let user = match auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await {
+        Ok(user) => user,
+        Err(_) => return next.call(req).await
+    };
+
     match state.permission_table.check_access(req.path(), user.role) {
         true => next.call(req).await,
         false => Err(actix_web::error::ErrorUnauthorized("Access Denied")),
@@ -105,6 +110,29 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
     };
     Ok(web::Json(user_response))
 }
+
+// #[derive(Serialize)]
+// struct ProductResponse {
+//     pub id: u32,
+//     pub name: String,
+//     pub price: f32,
+//     pub description: String,
+//     pub stock: Option<i32>,
+// }
+
+// #[derive(Deserialize)]
+// struct ProductParams {
+//     name: String,
+//     price: f32,
+//     description: Option<String>,
+// }
+
+// #[post("/api/create_product")]
+// pub async fn create_product(state: Data<AppState>, product_params: web::Json<ProductParams>) -> Result<web::Json<database::model::Product>, AppError> {
+//     let product = database::crud::create_product(&state.db, &product_params.name, product_params.price, product_params.description).await?;
+
+//     Ok(web::Json(product))
+// }
 
 //
 //              Google OAuth
