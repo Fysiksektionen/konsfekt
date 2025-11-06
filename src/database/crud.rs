@@ -1,14 +1,14 @@
 use sqlx::{Result, SqlitePool};
 
-use crate::AppError;
+use crate::{AppError, Role};
 
 use super::model::User;
 
 pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<User, AppError> {
     let user_table_has_rows: bool = sqlx::query_scalar(r#"
         SELECT EXISTS(SELECT 1 FROM User)"#).fetch_one(pool).await?;
-   
-    let role = if user_table_has_rows { None } else { Some(String::from("admin")) };
+    
+    let role = if user_table_has_rows { Role::User } else { Role::Admin };
     let id: u32 = sqlx::query_scalar(
         r#"
         INSERT INTO User (name, email, google_id, role, balance)

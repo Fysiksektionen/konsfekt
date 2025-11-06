@@ -2,7 +2,7 @@ use actix_web::{body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResp
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{auth, database::crud, utils::{self, get_path}, AppError, AppState};
+use crate::{auth, database::crud, utils::{self, get_path}, AppError, AppState, Role};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -64,6 +64,23 @@ pub async fn session_middleware(
     }
 }
 
+pub async fn permission_middleware(
+    state: Data<AppState>,
+    req: ServiceRequest,
+    next: middleware::Next<BoxBody>
+) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
+    let path = req.path();
+    if !state.permission_table.contains(path) {
+        return next.call(req).await;
+    }
+
+    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
+    match state.permission_table.check_access(req.path(), user.role) {
+        true => next.call(req).await,
+        false => Err(actix_web::error::ErrorUnauthorized("Access Denied")),
+    }
+}
+
 //
 //              API
 //
@@ -73,6 +90,7 @@ struct UserResponse {
     name: Option<String>,
     email: String,
     balance: f32,
+    role: Role
 }
 
 #[get("/api/get_user")]
@@ -83,6 +101,7 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
         name: user.name,
         email: user.email,
         balance: user.balance,
+        role: user.role
     };
     Ok(web::Json(user_response))
 }
