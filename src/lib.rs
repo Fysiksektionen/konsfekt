@@ -35,16 +35,19 @@ impl EnvironmentVariables {
         let mut static_frontend = env::var("STATIC_FRONTEND").unwrap_or("true".into()).parse::<bool>().unwrap_or(false);
         let is_debug = cfg!(debug_assertions);
         if !is_debug {
+            // --release mode uses prebuilt frontend
             static_frontend = true;
         }
         EnvironmentVariables {
             is_debug,
             static_frontend,
             frontend_url: match static_frontend { 
+                // If not static frontend, serve from default vite port
                 true => String::from("/"),
                 false => String::from("http://127.0.0.1:5173"),
             },
             site_domain: match is_debug {
+                // If not debug, use specified domain
                 true => String::from("http://127.0.0.1:8080"),
                 false => env::var("SITE_DOMAIN").unwrap(),
             },

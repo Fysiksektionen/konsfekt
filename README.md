@@ -45,6 +45,11 @@ from within the `frontend` directory
 Dependencies:
 - docker (docker compose)
 
+Set a value to the following environment variables:
+- `SITE_DOMAIN` where the webapp should be accessible at
+- `DATABASE_DIR` location to store database and uploaded images
+- `PERMISSION_TABLE_PATH` file path to role permissions
+
 Run the container with `docker compose up --build` (`--build` flag only needed the first time)
 
 ## About
