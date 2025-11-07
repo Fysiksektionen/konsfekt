@@ -13,6 +13,8 @@
 	<AppSidebar variant="inset" user={data.user}/>
 	<Sidebar.Inset>
 		<SiteHeader />
+    <div class="p-4">
       {@render children?.()}
+    </div>
 	</Sidebar.Inset>
 </Sidebar.Provider>

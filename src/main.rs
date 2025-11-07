@@ -37,7 +37,8 @@ async fn main() -> std::io::Result<()> {
             .service(routes::google_login)
             .service(routes::google_callback)
             .service(routes::get_user)
-        ;
+            .service(actix_files::Files::new("/uploads", "./db/uploads"));
+
         if env.static_frontend {
             app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
         } else {
