@@ -1,3 +1,4 @@
+use crate::Role;
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct User {
@@ -6,20 +7,22 @@ pub struct User {
     pub email: String,
     pub google_id: String,
     pub balance: f32,
-    pub role: Option<String>,
+    pub role: Role,
 }
 
-impl User {
-    pub fn get_role(&self) -> Option<Role> {
-        match self.role.as_deref() {
-            Some("admin") => Some(Role::ADMIN),
-            Some("maintainer") => Some(Role::MAINTAINER),
-            _ => None
-        }
-    }
+#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+pub struct Product {
+    pub id: u32,
+    pub name: String,
+    pub price: f32,
+    pub description: String,
+    pub stock: Option<i32>,
 }
 
-pub enum Role {
-    ADMIN,
-    MAINTAINER,
+#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+pub struct Transaction {
+    pub id: u32,
+    pub product: Product,
+    pub user: User,
+    pub amount: f32,
 }
