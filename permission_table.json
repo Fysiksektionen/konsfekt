@@ -1,3 +1,7 @@
 {
-    "/admin": "maintainer"
+    "/admin": "maintainer",
+    "/api/create_product": "maintainer",
+    "/api/get_products": "user",
+    "/api/update_product": "maintainer",
+    "/api/delete_product": "maintainer"
 }

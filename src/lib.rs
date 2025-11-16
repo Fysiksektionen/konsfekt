@@ -2,6 +2,7 @@ pub mod database;
 pub mod auth;
 pub mod routes;
 pub mod utils;
+pub mod model;
 
 use std::{collections::HashMap, env, fmt, fs};
 

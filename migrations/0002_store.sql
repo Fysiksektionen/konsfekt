@@ -3,7 +3,8 @@ CREATE TABLE Product (
     name TEXT NOT NULL,
     price REAL NOT NULL,
     description TEXT NOT NULL DEFAULT "",
-    stock INTEGER
+    stock INTEGER,
+    flags TEXT NOT NULL
 );
 
 CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword

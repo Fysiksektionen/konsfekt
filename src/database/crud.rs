@@ -3,7 +3,7 @@ use sqlx::{Result, SqlitePool};
 use crate::{AppError, Role};
 
 use super::model::User;
-use super::model::Product;
+use super::model::ProductRow;
 use super::model::Transaction;
 
 //
@@ -80,50 +80,61 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
 //          Shop
 //
 
-pub async fn create_product(pool: &SqlitePool, name: &str, price: f32, description: Option<String>) -> Result<Product, AppError> {
+pub async fn create_product(pool: &SqlitePool, name: &str, price: f32, description: Option<String>, flags: String) -> Result<ProductRow, AppError> {
+    
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO Product (name, price, description)
-        VALUES (?, ?, ?)
+        INSERT INTO Product (name, price, description, flags)
+        VALUES (?, ?, ?, ?)
         RETURNING id
         "#
-    ).bind(name).bind(price).bind(description.clone()).fetch_one(pool).await?;
+    ).bind(name).bind(price).bind(description.clone()).bind(flags.clone()).fetch_one(pool).await?;
 
-    Ok(Product {
+    Ok(ProductRow {
         id: id,
         name: name.to_string(),
         price: price,
         description: description.unwrap_or("".to_string()),
-        stock: None
+        stock: None,
+        flags: flags
     })
 }
 
-pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<Product, AppError> {
-    let product: Product = sqlx::query_as(
+pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<ProductRow, AppError> {
+    let product: ProductRow = sqlx::query_as(
         r#"
-        SELECT id, name, price, description, stock
+        SELECT id, name, price, description, stock, flags
         FROM Product 
         WHERE id = ?
         "#).bind(id).fetch_one(pool).await?;
     Ok(product)
 }
 
-pub async fn update_product_data(pool: &SqlitePool, product: &mut Product, name: Option<String>, price: Option<f32>, description: Option<String>) -> Result<(), AppError> {
-    product.name = name.unwrap_or(product.name.clone());
-    product.price = price.unwrap_or(product.price);
-    product.description = description.unwrap_or(product.description.clone());
-    
+pub async fn get_products(pool: &SqlitePool) -> Result<Vec<ProductRow>, AppError> {
+    let products: Vec<ProductRow> = sqlx::query_as(
+        r#"
+        SELECT id, name, price, description, stock, flags
+        FROM Product
+        ORDER BY id DESC
+        "#).fetch_all(pool).await?;
+
+    Ok(products)
+}
+
+pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Result<(), AppError> {
     sqlx::query(
         r#"
         UPDATE Product SET 
             name = ?, 
             price = ?, 
             description = ?,
+            flags = ?
         WHERE id = ?
         "#)
-        .bind(&product.name)
+        .bind(product.name)
         .bind(product.price)
-        .bind(&product.description)
+        .bind(product.description)
+        .bind(product.flags)
         .bind(product.id)
     .execute(pool)
     .await?;
@@ -131,7 +142,7 @@ pub async fn update_product_data(pool: &SqlitePool, product: &mut Product, name:
     Ok(())
 }
 
-pub async fn update_product_stock(pool: &SqlitePool, product: &mut Product, stock: Option<i32>) -> Result<(), AppError> {
+pub async fn update_product_stock(pool: &SqlitePool, product: ProductRow, stock: Option<i32>) -> Result<(), AppError> {
     sqlx::query(
         r#"
         UPDATE Product SET 
@@ -147,7 +158,7 @@ pub async fn update_product_stock(pool: &SqlitePool, product: &mut Product, stoc
 }
 
 
-pub async fn delete_product(pool: &SqlitePool, product: Product) -> Result<(), AppError> {
+pub async fn delete_product(pool: &SqlitePool, product: ProductRow) -> Result<(), AppError> {
     sqlx::query(
         r#"
         DELETE FROM Product 

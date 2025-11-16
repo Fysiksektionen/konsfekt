@@ -1,8 +1,8 @@
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
+use actix_web::{App, HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth, database::{self, crud}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth, database::{self, crud}, model::{ProductFlags, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -111,28 +111,50 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
     Ok(web::Json(user_response))
 }
 
-// #[derive(Serialize)]
-// struct ProductResponse {
-//     pub id: u32,
-//     pub name: String,
-//     pub price: f32,
-//     pub description: String,
-//     pub stock: Option<i32>,
-// }
+#[post("/api/create_product")]
+pub async fn create_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<web::Json<database::model::ProductRow>, AppError> {
+    let flags = match params.flags.clone() {
+        Some(flags) => match ProductFlags::validate_string(&flags) {
+            true => flags,
+            false => ProductFlags::default().to_string(),
+        }
+        None => ProductFlags::default().to_string(),
+    };
+    
+    let product = database::crud::create_product(
+        &state.db,
+        params.name.as_deref().unwrap(),
+        params.price.unwrap(),
+        params.description.clone(),
+        flags
+    ).await?;
 
-// #[derive(Deserialize)]
-// struct ProductParams {
-//     name: String,
-//     price: f32,
-//     description: Option<String>,
-// }
+    Ok(web::Json(product))
+}
 
-// #[post("/api/create_product")]
-// pub async fn create_product(state: Data<AppState>, product_params: web::Json<ProductParams>) -> Result<web::Json<database::model::Product>, AppError> {
-//     let product = database::crud::create_product(&state.db, &product_params.name, product_params.price, product_params.description).await?;
+#[post("/api/update_product")]
+pub async fn update_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+    let mut product = database::crud::get_product(&state.db, params.id.unwrap()).await?;
+    let params = params.into_inner();
 
-//     Ok(web::Json(product))
-// }
+    // Inte korrekt, ska kolla om user är Admin
+    // if !params.get_flags().unwrap().modifiable { 
+    //     return Err(AppError::GenericError("Not permission to edit product".to_string())) 
+    // };
+
+    product.update(params);
+
+    database::crud::update_product_data(&state.db, product).await?;
+
+    Ok(HttpResponse::Ok())
+}
+
+#[get("/api/get_products")]
+pub async fn get_products(state: Data<AppState>) -> Result<impl Responder, AppError> {
+    let products = database::crud::get_products(&state.db).await?;
+
+    Ok(HttpResponse::Ok().json(products))
+}
 
 //
 //              Google OAuth

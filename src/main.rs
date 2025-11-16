@@ -35,9 +35,20 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::from_fn(routes::permission_middleware))
             .app_data(Data::new(AppState::from(pool.clone(), env_clone.clone())))
             .wrap(cors)
+
+            // Google Auth
             .service(routes::google_login)
             .service(routes::google_callback)
+
+            // User API
             .service(routes::get_user)
+
+            // Product API
+            .service(routes::create_product)
+            .service(routes::get_products)
+            .service(routes::update_product)
+
+            // Uploads
             .service(actix_files::Files::new("/uploads", "./db/uploads"));
 
         if env.static_frontend {
