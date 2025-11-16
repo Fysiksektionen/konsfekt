@@ -2,7 +2,7 @@ use actix_web::{App, HttpMessage, HttpRequest, HttpResponse, Responder, body::Bo
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth, database::{self, crud}, model::{ProductFlags, ProductParams}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth, database::{self, crud}, model::{Product, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -113,38 +113,31 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
 
 #[post("/api/create_product")]
 pub async fn create_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<web::Json<database::model::ProductRow>, AppError> {
-    let flags = match params.flags.clone() {
-        Some(flags) => match ProductFlags::validate_string(&flags) {
-            true => flags,
-            false => ProductFlags::default().to_string(),
-        }
-        None => ProductFlags::default().to_string(),
-    };
-    
-    let product = database::crud::create_product(
-        &state.db,
-        params.name.as_deref().unwrap(),
-        params.price.unwrap(),
-        params.description.clone(),
-        flags
-    ).await?;
+    let product = Product::from_params(params.into_inner())
+        .map_err(|_| AppError::BadRequest("Missing requierd arguments".to_string()))?;
+    let product_row = database::crud::create_product(&state.db, product.into_row()).await?;
 
-    Ok(web::Json(product))
+    Ok(web::Json(product_row))
 }
 
 #[post("/api/update_product")]
 pub async fn update_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
-    let mut product = database::crud::get_product(&state.db, params.id.unwrap()).await?;
+    let product_row = database::crud::get_product(&state.db, params.id.unwrap()).await?;
+    let mut product = Product::from_row(product_row)
+        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
+    
     let params = params.into_inner();
 
-    // Inte korrekt, ska kolla om user är Admin
-    // if !params.get_flags().unwrap().modifiable { 
-    //     return Err(AppError::GenericError("Not permission to edit product".to_string())) 
-    // };
+    // Check if product may be modified
+    // TODO: check against user role for admin
+    if !product.flags.modifiable {
+        return Err(AppError::GenericError("Access Denied".to_string()));
+    }
 
-    product.update(params);
+    product.update(params)
+        .map_err(|_| AppError::BadRequest("Invalid formatting for \"flags\"".to_string()))?;
 
-    database::crud::update_product_data(&state.db, product).await?;
+    database::crud::update_product_data(&state.db, product.into_row()).await?;
 
     Ok(HttpResponse::Ok())
 }

@@ -80,7 +80,7 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
 //          Shop
 //
 
-pub async fn create_product(pool: &SqlitePool, name: &str, price: f32, description: Option<String>, flags: String) -> Result<ProductRow, AppError> {
+pub async fn create_product(pool: &SqlitePool, mut product: ProductRow) -> Result<ProductRow, AppError> {
     
     let id: u32 = sqlx::query_scalar(
         r#"
@@ -88,16 +88,15 @@ pub async fn create_product(pool: &SqlitePool, name: &str, price: f32, descripti
         VALUES (?, ?, ?, ?)
         RETURNING id
         "#
-    ).bind(name).bind(price).bind(description.clone()).bind(flags.clone()).fetch_one(pool).await?;
+    ).bind(product.name.clone())
+    .bind(product.price)
+    .bind(product.description.clone())
+    .bind(product.flags.clone())
+    .fetch_one(pool).await?;
 
-    Ok(ProductRow {
-        id: id,
-        name: name.to_string(),
-        price: price,
-        description: description.unwrap_or("".to_string()),
-        stock: None,
-        flags: flags
-    })
+    product.id = id;
+
+    Ok(product)
 }
 
 pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<ProductRow, AppError> {
@@ -156,7 +155,6 @@ pub async fn update_product_stock(pool: &SqlitePool, product: ProductRow, stock:
 
     Ok(())
 }
-
 
 pub async fn delete_product(pool: &SqlitePool, product: ProductRow) -> Result<(), AppError> {
     sqlx::query(

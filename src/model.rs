@@ -21,14 +21,27 @@ pub struct Product {
 
 impl Product {
     pub fn from_params(params: ProductParams) -> Result<Product, ()> {
-        let flags = params.flags.ok_or(())?;
         Ok(Product { 
             id: 0,
             name: params.name.ok_or(())?,
             price: params.price.ok_or(())?, 
             description: params.description.unwrap_or("".to_string()),
             stock: None,
-            flags: ProductFlags::from_str(&flags)?,
+            flags: match params.flags {
+                Some(flags) => ProductFlags::from_str(&flags)?,
+                None => ProductFlags::default(),
+            },
+        })
+    }
+
+    pub fn from_row(row: ProductRow) -> Result<Product, ()> {
+        Ok(Product { 
+            id: row.id,
+            name: row.name,
+            price: row.price,
+            description: row.description,
+            stock: row.stock,
+            flags: ProductFlags::from_str(&row.flags)?, 
         })
     }
 
@@ -67,24 +80,6 @@ impl ProductParams {
     }
 }
 
-impl ProductRow {
-
-    pub fn get_flags(&self) -> ProductFlags {
-        serde_json::from_str(&self.flags).unwrap()
-    }
-
-    pub fn set_flags(&mut self, flags: &ProductFlags) {
-        self.flags = flags.to_string();
-    }
-
-    pub fn update(&mut self, params: ProductParams) {
-        match params.name { Some(name) => self.name = name, _ => () }
-        match params.price { Some(price) => self.price = price, _ => () }
-        match params.description { Some(description) => self.description = description, _ => () }
-        match params.flags { Some(flags) => self.flags = flags, _ => () }
-    }
-}
-
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct ProductFlags {
     pub modifiable: bool, // is only modifiable by admin
@@ -102,13 +97,6 @@ impl ProductFlags {
     pub fn from_str(string: &str) -> Result<ProductFlags, ()> {
         serde_json::from_str::<ProductFlags>(string).map_err(|_| ())
     }
-
-    pub fn validate_string(string: &str) -> bool {
-        match serde_json::from_str::<ProductFlags>(string) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
-    } 
 
     pub fn to_string(&self) -> String {
         serde_json::to_string(self).unwrap()
