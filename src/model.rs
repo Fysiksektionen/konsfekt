@@ -7,6 +7,7 @@ pub struct ProductParams {
     pub name: Option<String>,
     pub price: Option<f32>,
     pub description: Option<String>,
+    pub stock: Option<i32>,
     pub flags: Option<String>
 }
 

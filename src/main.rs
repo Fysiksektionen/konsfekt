@@ -47,6 +47,7 @@ async fn main() -> std::io::Result<()> {
             .service(routes::create_product)
             .service(routes::get_products)
             .service(routes::update_product)
+            .service(routes::update_stock)
             .service(routes::delete_product)
 
             // Uploads

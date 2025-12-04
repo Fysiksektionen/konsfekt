@@ -152,6 +152,25 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, params: web
     Ok(HttpResponse::Ok())
 }
 
+#[post("/api/update_stock")]
+pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
+    
+    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
+
+    let product_row = database::crud::get_product(&state.db, id).await?;
+    let product = Product::from_row(product_row)
+        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
+    
+    let params = params.into_inner();
+
+    product_assert_permission(&product, &user)?;
+
+    database::crud::update_product_stock(&state.db, product.into_row(), params.stock).await?;
+
+    Ok(HttpResponse::Ok())
+}
+
 #[post("/api/delete_product")]
 pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
     let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
