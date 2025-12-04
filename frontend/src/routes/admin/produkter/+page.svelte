@@ -2,9 +2,11 @@
     import Input from '$lib/components/ui/input/input.svelte';
     import { createSearchStore, searchData } from '$lib/utils';
     import * as Sheet from "$lib/components/ui/sheet/index.js";
-	import type { PageProps } from './$types';
+    import Button from '$lib/components/ui/button/button.svelte';
+    import ProductForm from './ProductForm.svelte';
+    import type { PageData } from './$types.js';
 
-	let { data }: PageProps = $props();
+	let { data }: { data: PageData } = $props();
   let searchTerm = $state("");
   let searchStore = $state(createSearchStore(data.products, ["title", "description", "category"]));
   $effect(() => {
@@ -14,6 +16,21 @@
 
 
 <Input bind:value={searchTerm} placeholder="Sök efter produkter..."/>
+
+<Sheet.Root>
+  <Sheet.Trigger>
+    <Button class="mt-3">Lägg till en produkt</Button>
+  </Sheet.Trigger>
+  <Sheet.Content>
+    <Sheet.Header>
+      <Sheet.Title>Lägg till en ny produkt</Sheet.Title>
+      <Sheet.Description>
+        <ProductForm {data}/>
+      </Sheet.Description>
+    </Sheet.Header>
+  </Sheet.Content>
+</Sheet.Root>
+
 <div class="grid grid-cols-4 gap-3 mt-3">
   {#each searchStore.filtered as product}
     <Sheet.Root>
@@ -38,16 +55,18 @@
         <Sheet.Header>
           <Sheet.Title>{product.title}</Sheet.Title>
           <Sheet.Description>
+          <p>
             Här kan du ändra information och pris för denna produkt.
+          </p>
+            <div class="overflow-hidden rounded-xl">
+              <img
+               src="/uploads/images/product/0.webp"
+               alt={product.title}
+               class="aspect-square h-[80px] object-cover"
+              />
+            </div>
           </Sheet.Description>
         </Sheet.Header>
-        <div class="overflow-hidden rounded-xl">
-          <img
-           src="/uploads/images/product/0.webp"
-           alt={product.title}
-           class="aspect-square h-[80px] object-cover"
-          />
-        </div>
       </Sheet.Content>
     </Sheet.Root>
   {/each}
