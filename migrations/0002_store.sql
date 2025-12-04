@@ -3,7 +3,8 @@ CREATE TABLE Product (
     name TEXT NOT NULL,
     price REAL NOT NULL,
     description TEXT NOT NULL DEFAULT "",
-    stock INTEGER
+    stock INTEGER,
+    flags TEXT NOT NULL
 );
 
 CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword
@@ -11,6 +12,6 @@ CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword
     product INTEGER NOT NULL,
     user INTEGER NOT NULL,
     amount REAL NOT NULL,
-    FOREIGN KEY("product") REFERENCES Product("id"),
-    FOREIGN KEY("user") REFERENCES User("id")
+    FOREIGN KEY("product") REFERENCES Product("id") ON DELETE SET NULL,
+    FOREIGN KEY("user") REFERENCES User("id") ON DELETE SET NULL
 );
