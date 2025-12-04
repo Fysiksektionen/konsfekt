@@ -1,5 +1,6 @@
 use actix_web::{App, HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use time::Duration;
 
 use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{Product, ProductParams}, utils::{self, get_path}};
@@ -121,6 +122,22 @@ fn product_assert_permission(product: &Product, user: &User) -> Result<(), AppEr
     Ok(())
 }
 
+async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<User, AppError> {
+    let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
+
+    Ok(user)
+}
+
+async fn product_from_params(pool: &SqlitePool, params: &web::Json<ProductParams>) -> Result<Product, AppError> {
+    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
+
+    let product_row = database::crud::get_product(pool, id).await?;
+    let product = Product::from_row(product_row)
+        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
+    
+    Ok(product)
+}
+
 #[post("/api/create_product")]
 pub async fn create_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<web::Json<database::model::ProductRow>, AppError> {
     let product = Product::from_params(params.into_inner())
@@ -133,13 +150,8 @@ pub async fn create_product(state: Data<AppState>, params: web::Json<ProductPara
 
 #[post("/api/update_product")]
 pub async fn update_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
-    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
-    
-    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
-    let product_row = database::crud::get_product(&state.db, id).await?;
-    let mut product = Product::from_row(product_row)
-        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
-    
+    let user = user_from_cookie(&state.db, &req).await?;
+    let mut product = product_from_params(&state.db, &params).await?;
     let params = params.into_inner();
 
     product_assert_permission(&product, &user)?;
@@ -154,18 +166,11 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, params: web
 
 #[post("/api/update_stock")]
 pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
-    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
-    
-    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
-
-    let product_row = database::crud::get_product(&state.db, id).await?;
-    let product = Product::from_row(product_row)
-        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
-    
+    let user = user_from_cookie(&state.db, &req).await?;
+    let product = product_from_params(&state.db, &params).await?;
     let params = params.into_inner();
 
     product_assert_permission(&product, &user)?;
-
     database::crud::update_product_stock(&state.db, product.into_row(), params.stock).await?;
 
     Ok(HttpResponse::Ok())
@@ -173,15 +178,10 @@ pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::
 
 #[post("/api/delete_product")]
 pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
-    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
-    
-    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
-    let product_row = database::crud::get_product(&state.db, id).await?;
-    let product = Product::from_row(product_row)
-        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
+    let user = user_from_cookie(&state.db, &req).await?;
+    let product = product_from_params(&state.db, &params).await?;
 
     product_assert_permission(&product, &user)?;
-
     database::crud::delete_product(&state.db, product.into_row()).await?;
 
     Ok(HttpResponse::Ok())
