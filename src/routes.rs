@@ -1,8 +1,9 @@
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
+use actix_web::{App, HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth, database::{self, crud}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{Product, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -111,28 +112,87 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
     Ok(web::Json(user_response))
 }
 
-// #[derive(Serialize)]
-// struct ProductResponse {
-//     pub id: u32,
-//     pub name: String,
-//     pub price: f32,
-//     pub description: String,
-//     pub stock: Option<i32>,
-// }
 
-// #[derive(Deserialize)]
-// struct ProductParams {
-//     name: String,
-//     price: f32,
-//     description: Option<String>,
-// }
+fn product_assert_permission(product: &Product, user: &User) -> Result<(), AppError> {
+    // Check if product may be modified
+    if !product.flags.modifiable && user.role != Role::Admin {
+        return Err(AppError::GenericError("Access Denied".to_string()));
+    }
 
-// #[post("/api/create_product")]
-// pub async fn create_product(state: Data<AppState>, product_params: web::Json<ProductParams>) -> Result<web::Json<database::model::Product>, AppError> {
-//     let product = database::crud::create_product(&state.db, &product_params.name, product_params.price, product_params.description).await?;
+    Ok(())
+}
 
-//     Ok(web::Json(product))
-// }
+async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<User, AppError> {
+    let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
+
+    Ok(user)
+}
+
+async fn product_from_params(pool: &SqlitePool, params: &web::Json<ProductParams>) -> Result<Product, AppError> {
+    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
+
+    let product_row = database::crud::get_product(pool, id).await?;
+    let product = Product::from_row(product_row)
+        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
+    
+    Ok(product)
+}
+
+#[post("/api/create_product")]
+pub async fn create_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<web::Json<database::model::ProductRow>, AppError> {
+    let product = Product::from_params(params.into_inner())
+        .map_err(|_| AppError::BadRequest("Missing requierd arguments".to_string()))?;
+    let product_row = database::crud::create_product(&state.db, product.into_row()).await?;
+
+    Ok(web::Json(product_row))
+}
+
+
+#[post("/api/update_product")]
+pub async fn update_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let mut product = product_from_params(&state.db, &params).await?;
+    let params = params.into_inner();
+
+    product_assert_permission(&product, &user)?;
+
+    product.update(params)
+        .map_err(|_| AppError::BadRequest("Invalid formatting for \"flags\"".to_string()))?;
+
+    database::crud::update_product_data(&state.db, product.into_row()).await?;
+
+    Ok(HttpResponse::Ok())
+}
+
+#[post("/api/update_stock")]
+pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let product = product_from_params(&state.db, &params).await?;
+    let params = params.into_inner();
+
+    product_assert_permission(&product, &user)?;
+    database::crud::update_product_stock(&state.db, product.into_row(), params.stock).await?;
+
+    Ok(HttpResponse::Ok())
+}
+
+#[post("/api/delete_product")]
+pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let product = product_from_params(&state.db, &params).await?;
+
+    product_assert_permission(&product, &user)?;
+    database::crud::delete_product(&state.db, product.into_row()).await?;
+
+    Ok(HttpResponse::Ok())
+}
+
+#[get("/api/get_products")]
+pub async fn get_products(state: Data<AppState>) -> Result<impl Responder, AppError> {
+    let products = database::crud::get_products(&state.db).await?;
+
+    Ok(HttpResponse::Ok().json(products))
+}
 
 //
 //              Google OAuth

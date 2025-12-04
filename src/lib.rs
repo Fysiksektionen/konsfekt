@@ -2,6 +2,7 @@ pub mod database;
 pub mod auth;
 pub mod routes;
 pub mod utils;
+pub mod model;
 
 use std::{collections::HashMap, env, fmt, fs};
 
@@ -127,6 +128,8 @@ pub enum AppError {
     DatabaseError(sqlx::Error),
     GenericError(String),
 
+    BadRequest(String),
+
     SessionError(String),
 
     
@@ -138,7 +141,8 @@ impl ResponseError for AppError {
             Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
             Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}")),
             Self::GenericError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("GenericError: {e}")),
-            Self::SessionError(e) => (StatusCode:: INTERNAL_SERVER_ERROR, format!("SessionError: {e}"))
+            Self::SessionError(e) => (StatusCode:: INTERNAL_SERVER_ERROR, format!("SessionError: {e}")),
+            Self::BadRequest(e) => (StatusCode::BAD_REQUEST, format!("BadRequest: {e}")),
         };
 
         HttpResponse::build(status).body(message)
@@ -152,6 +156,7 @@ impl fmt::Display for AppError {
             AppError::DatabaseError(err) => write!(f, "Database error: {}", err),
             AppError::GenericError(err) => write!(f, "Generic error: {}", err),
             AppError::SessionError(err) => write!(f, "Session error: {}", err),
+            AppError::BadRequest(err) => write!(f, "Bad Request error: {}", err),
         }
     }
 }
