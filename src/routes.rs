@@ -2,7 +2,7 @@ use actix_web::{App, HttpMessage, HttpRequest, HttpResponse, Responder, body::Bo
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth, database::{self, crud}, model::{Product, ProductParams}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{Product, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -111,6 +111,16 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
     Ok(web::Json(user_response))
 }
 
+
+fn product_assert_permission(product: &Product, user: &User) -> Result<(), AppError> {
+    // Check if product may be modified
+    if !product.flags.modifiable && user.role != Role::Admin {
+        return Err(AppError::GenericError("Access Denied".to_string()));
+    }
+
+    Ok(())
+}
+
 #[post("/api/create_product")]
 pub async fn create_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<web::Json<database::model::ProductRow>, AppError> {
     let product = Product::from_params(params.into_inner())
@@ -120,24 +130,40 @@ pub async fn create_product(state: Data<AppState>, params: web::Json<ProductPara
     Ok(web::Json(product_row))
 }
 
+
 #[post("/api/update_product")]
-pub async fn update_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
-    let product_row = database::crud::get_product(&state.db, params.id.unwrap()).await?;
+pub async fn update_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
+    
+    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
+    let product_row = database::crud::get_product(&state.db, id).await?;
     let mut product = Product::from_row(product_row)
         .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
     
     let params = params.into_inner();
 
-    // Check if product may be modified
-    // TODO: check against user role for admin
-    if !product.flags.modifiable {
-        return Err(AppError::GenericError("Access Denied".to_string()));
-    }
+    product_assert_permission(&product, &user)?;
 
     product.update(params)
         .map_err(|_| AppError::BadRequest("Invalid formatting for \"flags\"".to_string()))?;
 
     database::crud::update_product_data(&state.db, product.into_row()).await?;
+
+    Ok(HttpResponse::Ok())
+}
+
+#[post("/api/delete_product")]
+pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+    let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
+    
+    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
+    let product_row = database::crud::get_product(&state.db, id).await?;
+    let product = Product::from_row(product_row)
+        .map_err(|_| AppError::GenericError("Internal Database formatting incorrect".to_string()))?;
+
+    product_assert_permission(&product, &user)?;
+
+    database::crud::delete_product(&state.db, product.into_row()).await?;
 
     Ok(HttpResponse::Ok())
 }
