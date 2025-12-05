@@ -1,5 +1,6 @@
-use actix_web::{App, HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder, body::BoxBody, cookie::Cookie, dev::{ServiceRequest, ServiceResponse}, get, middleware, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
+use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use sqlx::SqlitePool;
 use time::Duration;
 
@@ -129,7 +130,7 @@ async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<User, 
 }
 
 async fn product_from_params(pool: &SqlitePool, params: &web::Json<ProductParams>) -> Result<Product, AppError> {
-    let id = params.id.ok_or(AppError::BadRequest("Missing requierd argument \"id\"".to_string()))?;
+    let id = params.id.ok_or(AppError::BadRequest("Missing required argument \"id\"".to_string()))?;
 
     let product_row = database::crud::get_product(pool, id).await?;
     let product = Product::from_row(product_row)
@@ -138,12 +139,24 @@ async fn product_from_params(pool: &SqlitePool, params: &web::Json<ProductParams
     Ok(product)
 }
 
+#[derive(MultipartForm)]
+struct ProductAndImageForm {
+    #[multipart(limit = "100MB")]
+    image: Option<TempFile>,
+    product: MpJson<ProductParams>,
+}
+
 #[post("/api/create_product")]
-pub async fn create_product(state: Data<AppState>, params: web::Json<ProductParams>) -> Result<web::Json<database::model::ProductRow>, AppError> {
-    let product = Product::from_params(params.into_inner())
+pub async fn create_product(state: Data<AppState>, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<web::Json<database::model::ProductRow>, AppError> {
+    let product = Product::from_params(form.product.into_inner())
         .map_err(|_| AppError::BadRequest("Missing requierd arguments".to_string()))?;
     let product_row = database::crud::create_product(&state.db, product.into_row()).await?;
-
+    
+    if let Some(file) = form.image {
+        if utils::save_img_to_disk(file, &product_row.id.to_string()).is_none() {
+            return Err(AppError::GenericError("Product image not saved".to_string())) 
+        }
+    }
     Ok(web::Json(product_row))
 }
 

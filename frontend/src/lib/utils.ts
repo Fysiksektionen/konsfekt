@@ -62,3 +62,12 @@ export function searchData<T extends object>(store: SearchStore<T>, searchTerm: 
         return false;
     })     
 }
+
+export async function backendPOST(endpoint: string, payload: any) {
+    return fetch("/api" + endpoint, {
+        method: "POST",
+        body: payload,
+        credentials: "include"
+    })
+}
+

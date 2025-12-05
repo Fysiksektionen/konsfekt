@@ -2,6 +2,7 @@
  import * as Form from "$lib/components/ui/form/index.js";
  import { Input } from "$lib/components/ui/input/index.js";
     import Textarea from "$lib/components/ui/textarea/textarea.svelte";
+    import { backendPOST } from "$lib/utils";
  import { productFormSchema, type ProductFormSchema } from "./product-schema";
  import {
   type SuperValidated,
@@ -18,10 +19,24 @@
  const form = superForm(data.form, {
   SPA: true,
   validators: zod4Client(productFormSchema),
-  onUpdate({ form }) {
+  async onUpdate({ form }) {
     if (form.valid) {
       console.log(form);
     }
+
+
+    const formData = new FormData();
+
+    let { image, ...product } = form.data;
+
+    formData.append("product", new Blob([JSON.stringify(product)], { type: "application/json" }))
+    if (!image) {
+      return
+    }
+    formData.append("image", image);
+  
+    let response = await backendPOST("/create_product", formData);
+    console.log(response);
   }
  });
  
