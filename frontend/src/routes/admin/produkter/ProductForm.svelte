@@ -1,5 +1,6 @@
 <script lang="ts">
  import * as Form from "$lib/components/ui/form/index.js";
+ import UploadIcon from "@lucide/svelte/icons/upload"
  import { Input } from "$lib/components/ui/input/index.js";
     import Textarea from "$lib/components/ui/textarea/textarea.svelte";
     import { backendPOST } from "$lib/utils";
@@ -12,18 +13,18 @@
  } from "sveltekit-superforms";
  import { zod4Client } from "sveltekit-superforms/adapters";
  
- let { data }: { 
-   data: { form: SuperValidated<Infer<ProductFormSchema>> } 
+ let { data, onFormSubmit }: { 
+   data: { form: SuperValidated<Infer<ProductFormSchema>> };
+   onFormSubmit: (products: any[]) => void;
   } = $props();
  
  const form = superForm(data.form, {
   SPA: true,
   validators: zod4Client(productFormSchema),
   async onUpdate({ form }) {
-    if (form.valid) {
-      console.log(form);
+    if (!form.valid) {
+      return;
     }
-
 
     const formData = new FormData();
 
@@ -34,65 +35,88 @@
       return
     }
     formData.append("image", image);
-  
-    let response = await backendPOST("/create_product", formData);
-    console.log(response);
+    let products = await backendPOST("/create_product", formData)
+            .then(res => res.json());
+    onFormSubmit(products);
   }
  });
  
  const { form: formData, enhance } = form;
  const file = fileProxy(form, "image");
+ const imgURL = $derived($file.item(0) ? URL.createObjectURL($file.item(0)!) : null);
 </script>
  
-<form method="POST" enctype="multipart/form-data" use:enhance>
- <Form.Field {form} name="name">
-  <Form.Control>
-   {#snippet children({ props })}
-    <Form.Label>Produkt namn</Form.Label>
-    <Input {...props} bind:value={$formData.name} />
-   {/snippet}
-  </Form.Control>
-  <Form.FieldErrors />
- </Form.Field>
-
- <Form.Field {form} name="price">
-  <Form.Control>
-   {#snippet children({ props })}
-    <Form.Label>Pris</Form.Label>
-    <Input {...props} bind:value={$formData.price} type="number" />
-   {/snippet}
-  </Form.Control>
-  <Form.FieldErrors />
- </Form.Field>
-
-  <Form.Field {form} name="description">
-    <Form.Control>
+<form method="POST" enctype="multipart/form-data" use:enhance class="flex flex-col justify-between h-full">
+  <div class="flex flex-col justify-between">
+    <Form.Field {form} name="name">
+     <Form.Control>
       {#snippet children({ props })}
-        <Form.Label>Produktbeskrivning</Form.Label>
-        <Textarea
-          {...props}
-          class="resize-none"
-          bind:value={$formData.description}
-        />
+       <Form.Label>Produkt namn</Form.Label>
+       <Input {...props} bind:value={$formData.name} />
       {/snippet}
-    </Form.Control>
-    <Form.FieldErrors />
-  </Form.Field>
+     </Form.Control>
+     <Form.FieldErrors />
+    </Form.Field>
 
-  <Form.Field {form} name="image">
-    <Form.Control>
+    <Form.Field {form} name="price">
+     <Form.Control>
       {#snippet children({ props })}
-        <Form.Label>Produktbeskrivning</Form.Label>
-        <input
-          {...props}
-          type="file"
-          class="resize-none bg-red-500"
-          bind:files={$file}
-        />
+       <Form.Label>Pris</Form.Label>
+       <Input {...props} bind:value={$formData.price} type="number" />
       {/snippet}
-    </Form.Control>
-    <Form.FieldErrors />
-  </Form.Field>
+     </Form.Control>
+     <Form.FieldErrors />
+    </Form.Field>
 
- <Form.Button>Submit</Form.Button>
+    <Form.Field {form} name="description">
+      <Form.Control>
+        {#snippet children({ props })}
+          <Form.Label>Produktbeskrivning</Form.Label>
+          <Textarea
+            {...props}
+            class="resize-none"
+            bind:value={$formData.description}
+          />
+        {/snippet}
+      </Form.Control>
+      <Form.FieldErrors />
+    </Form.Field>
+
+    <Form.Field {form} name="image">
+      <Form.Control>
+        {#snippet children({ props })}
+          <Form.Label>Produktbild</Form.Label>
+          {#if $file.length == 1}
+            <div class="overflow-hidden rounded-xl border w-fit">
+              <img
+               src={imgURL}
+               alt="Produktbild"
+               class="aspect-square h-[80px] object-cover"
+              />
+            </div>
+          {/if}
+          <label>
+            <input
+              {...props}
+              type="file"
+              class="resize-none hidden"
+              bind:files={$file}
+            />
+            <span class="
+              p-1
+              focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium outline-none transition-all focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0
+              bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 border
+            ">
+              Ladda upp bild
+              <UploadIcon/>
+            </span>
+          </label>
+        {/snippet}
+      </Form.Control>
+      <Form.FieldErrors />
+    </Form.Field>
+  </div>
+  <div>
+    <Form.Button class="">Lägg till produkt</Form.Button>
+  </div>
 </form>

@@ -147,7 +147,7 @@ struct ProductAndImageForm {
 }
 
 #[post("/api/create_product")]
-pub async fn create_product(state: Data<AppState>, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<web::Json<database::model::ProductRow>, AppError> {
+pub async fn create_product(state: Data<AppState>, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<impl Responder, AppError> {
     let product = Product::from_params(form.product.into_inner())
         .map_err(|_| AppError::BadRequest("Missing requierd arguments".to_string()))?;
     let product_row = database::crud::create_product(&state.db, product.into_row()).await?;
@@ -157,7 +157,9 @@ pub async fn create_product(state: Data<AppState>, MultipartForm(form): Multipar
             return Err(AppError::GenericError("Product image not saved".to_string())) 
         }
     }
-    Ok(web::Json(product_row))
+    let products = database::crud::get_products(&state.db).await?;
+
+    Ok(HttpResponse::Ok().json(products))
 }
 
 

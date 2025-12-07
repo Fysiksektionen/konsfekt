@@ -1,6 +1,6 @@
 <script lang="ts">
     import Input from '$lib/components/ui/input/input.svelte';
-    import { createSearchStore, searchData } from '$lib/utils';
+    import { createSearchStore, searchData, updateSearchStore } from '$lib/utils';
     import * as Sheet from "$lib/components/ui/sheet/index.js";
     import Button from '$lib/components/ui/button/button.svelte';
     import ProductForm from './ProductForm.svelte';
@@ -8,25 +8,30 @@
 
 	let { data }: { data: PageData } = $props();
   let searchTerm = $state("");
-  let searchStore = $state(createSearchStore(data.products, ["title", "description", "category"]));
+  const searchableTerms = ["name", "description"];
+  let searchStore = $state(createSearchStore(data.products, searchableTerms));
   $effect(() => {
     searchData(searchStore, searchTerm);
   });
+  
+  let addProductSheetOpen = $state(false);
+  function onFormSubmit(newProducts: any[]) {
+    updateSearchStore(searchStore, newProducts);
+    addProductSheetOpen = false;
+  }
 </script>
 
 
 <Input bind:value={searchTerm} placeholder="Sök efter produkter..."/>
 
-<Sheet.Root>
+<Sheet.Root bind:open={addProductSheetOpen}>
   <Sheet.Trigger>
     <Button class="mt-3">Lägg till en produkt</Button>
   </Sheet.Trigger>
   <Sheet.Content>
-    <Sheet.Header>
+    <Sheet.Header class="h-full">
       <Sheet.Title>Lägg till en ny produkt</Sheet.Title>
-      <Sheet.Description>
-        <ProductForm {data}/>
-      </Sheet.Description>
+      <ProductForm {data} {onFormSubmit}/>
     </Sheet.Header>
   </Sheet.Content>
 </Sheet.Root>
@@ -36,12 +41,12 @@
     <Sheet.Root>
       <Sheet.Trigger>
         <div class="flex flex-col p-2 bg-card rounded-md border">
-            <p class="truncate text-left font-bold">{product.title}</p> 
+            <p class="truncate text-left font-bold">{product.name}</p> 
             <div class="flex justify-between">
               <div class="overflow-hidden rounded-xl">
                 <img
-                 src="/uploads/images/product/0.webp"
-                 alt={product.title}
+                 src="/uploads/images/product/{product.id}.webp"
+                 alt={product.description}
                  class="aspect-square h-[80px] object-cover"
                 />
               </div>
@@ -53,15 +58,15 @@
       </Sheet.Trigger>
       <Sheet.Content>
         <Sheet.Header>
-          <Sheet.Title>{product.title}</Sheet.Title>
+          <Sheet.Title>{product.name}</Sheet.Title>
           <Sheet.Description>
           <p>
             Här kan du ändra information och pris för denna produkt.
           </p>
             <div class="overflow-hidden rounded-xl">
               <img
-               src="/uploads/images/product/0.webp"
-               alt={product.title}
+               src="/uploads/images/product/{product.id}.webp"
+               alt={product.name}
                class="aspect-square h-[80px] object-cover"
               />
             </div>

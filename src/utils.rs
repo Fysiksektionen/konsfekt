@@ -23,5 +23,8 @@ pub fn save_img_to_disk(img_file: TempFile, name: &str) -> Option<()> {
     let file = img_file.file.reopen().ok()?;
     let reader = BufReader::new(file);
     let img = ImageReader::new(reader).with_guessed_format().ok()?.decode().ok()?;
+
+    // TODO Image resizing and compression
+    
     img.save(format!("./db/uploads/images/product/{}.webp", name)).ok()
 }
