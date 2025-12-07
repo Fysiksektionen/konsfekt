@@ -53,12 +53,9 @@ export function createSearchStore<T extends object>(data: T[], searchBy: (keyof 
 }
 
 export function searchData<T extends object>(store: SearchStore<T>, searchTerm: string) {
-    if (store.data.length == 0) {
-        return false;
-    }
     store.filtered = store.data.filter(item => {
         for (var key of store.searchBy) {
-            if (String(item[key]).toLowerCase().includes(searchTerm)) {
+            if (String(item[key]).toLowerCase().includes(searchTerm.toLowerCase())) {
                 return true; 
             }
         }
@@ -68,6 +65,7 @@ export function searchData<T extends object>(store: SearchStore<T>, searchTerm: 
 
 export function updateSearchStore<T extends object>(store: SearchStore<T>, newData: T[]) {
     store.data = newData;
+    store.filtered = newData;
 }
 
 export async function backendPOST(endpoint: string, payload: any) {
