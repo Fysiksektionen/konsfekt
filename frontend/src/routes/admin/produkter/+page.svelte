@@ -22,7 +22,7 @@
 </script>
 
 
-<Input bind:value={searchTerm} placeholder="Sök efter produkter..."/>
+<Input bind:value={searchTerm} placeholder="Sök efter produkt..."/>
 
 <Sheet.Root bind:open={addProductSheetOpen}>
   <Sheet.Trigger>

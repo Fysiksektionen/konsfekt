@@ -28,12 +28,20 @@
    },
   ];
 
+  const isAdmin = ["admin", "maintainer"].includes(data.user.role);
 </script>
 
 <div class="w-full md:pl-10 md:pr-10 lg:pl-30 lg:pr-30 gap-3 flex flex-col items-start">
   <h1 class="scroll-m-20 text-4xl mb-3 lg:mt-5 font-extrabold tracking-tight lg:text-5xl">
     Min profil
   </h1>
+  
+  {#if isAdmin}
+    <div class="flex items-center gap-3">
+     <p>Du är administratör</p> 
+     <Button href="/admin" variant="outline" class="hover:bg-primary">Gå till adminsidan</Button>
+    </div>
+  {/if}
 
   <div class="flex items-center gap-3">
    <p>Byt mellan mörkt och ljust läge</p> 
@@ -86,7 +94,7 @@
       <Item.Content>
         <Item.Title>Anonyma köp</Item.Title>
         <Item.Description>
-          Vill du inte att dina köp ska kopplas till ditt namn?
+          Vill du att dina köp <u>inte</u> ska kopplas till ditt namn?
         </Item.Description>
       </Item.Content>
       <Item.Actions>
