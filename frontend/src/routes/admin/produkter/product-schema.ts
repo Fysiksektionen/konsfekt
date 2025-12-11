@@ -9,10 +9,11 @@ const imageFileValidator = (file: File | undefined) => {
 };
  
 export const productFormSchema = z.object({
+    id: z.number().positive().int().optional(),
     name: z.string().nonempty(),
     price: z.number(),
     description: z.string(),
-    stock: z.number().optional(),
+    stock: z.number().optional().nullable(),
     image: z.instanceof(File).optional().refine(imageFileValidator, {
       message: "The file must be an image of format WebP, JPEG, or PNG"
     })

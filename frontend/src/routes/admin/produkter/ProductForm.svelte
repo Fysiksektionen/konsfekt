@@ -13,12 +13,12 @@
  } from "sveltekit-superforms";
  import { zod4Client } from "sveltekit-superforms/adapters";
  
- let { data, onFormSubmit }: { 
-   data: { form: SuperValidated<Infer<ProductFormSchema>> };
+ let { validatedForm, onFormSubmit }: { 
+   validatedForm: SuperValidated<Infer<ProductFormSchema>>;
    onFormSubmit: (products: any[]) => void;
   } = $props();
  
- const form = superForm(data.form, {
+ const form = superForm(validatedForm, {
   SPA: true,
   validators: zod4Client(productFormSchema),
   async onUpdate({ form }) {
@@ -43,7 +43,14 @@
  
  const { form: formData, enhance } = form;
  const file = fileProxy(form, "image");
- const imgURL = $derived($file.item(0) ? URL.createObjectURL($file.item(0)!) : null);
+
+ const imgURL = $derived.by(() => {
+   if ($file.item(0)) {
+     return URL.createObjectURL($file.item(0)!);
+   } else if ($formData.id != undefined) {
+     return "/uploads/images/product/" + $formData.id + ".webp";
+   }
+ });
 </script>
  
 <form method="POST" enctype="multipart/form-data" use:enhance class="flex flex-col justify-between h-full">
@@ -86,7 +93,7 @@
       <Form.Control>
         {#snippet children({ props })}
           <Form.Label>Produktbild</Form.Label>
-          {#if $file.length == 1}
+          {#if $file.length == 1 || $formData.id != undefined}
             <div class="overflow-hidden rounded-xl border w-fit">
               <img
                src={imgURL}
@@ -117,6 +124,12 @@
     </Form.Field>
   </div>
   <div>
-    <Form.Button class="">Lägg till produkt</Form.Button>
+    <Form.Button class="">
+      {#if $formData.id != undefined}
+        Uppdatera produkt 
+      {:else}
+        Lägg till produkt
+      {/if}
+    </Form.Button>
   </div>
 </form>
