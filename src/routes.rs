@@ -186,7 +186,7 @@ pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::
     let params = params.into_inner();
 
     product_assert_permission(&product, &user)?;
-    database::crud::update_product_stock(&state.db, product.into_row(), params.stock).await?;
+    database::crud::update_product_stock(&state.db, product.id, params.stock).await?;
 
     Ok(HttpResponse::Ok())
 }
@@ -197,7 +197,7 @@ pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web
     let product = product_from_params(&state.db, &params).await?;
 
     product_assert_permission(&product, &user)?;
-    database::crud::delete_product(&state.db, product.into_row()).await?;
+    database::crud::delete_product(&state.db, product.id).await?;
 
     Ok(HttpResponse::Ok())
 }
@@ -207,6 +207,36 @@ pub async fn get_products(state: Data<AppState>) -> Result<impl Responder, AppEr
     let products = database::crud::get_products(&state.db).await?;
 
     Ok(HttpResponse::Ok().json(products))
+}
+
+
+#[post("/api/buy_product/{product_id}")]
+pub async fn buy_product(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let product_id = path.into_inner();
+
+    let product_row = database::crud::get_product(&state.db, product_id).await?;
+    if product_row.stock.is_none_or(|v| v <= 0) {
+        return Err(AppError::GenericError("Product not in stock".to_string()))
+    }
+    
+    if user.balance < product_row.price {
+        return Err(AppError::GenericError("Not enough funds".to_string()))
+    }
+    
+    database::crud::create_transaction(&state.db, database::model::Transaction {
+        user: user.id,
+        product: product_row.id,
+        id: 0,
+        amount: product_row.price,
+    }).await?;
+    database::crud::update_user_balance(&state.db, user.id, user.balance - product_row.price).await?;
+
+    let stock = product_row.stock.unwrap() - 1;
+    database::crud::update_product_stock(&state.db, product_row.id, Some(stock)).await?;
+    
+
+    Ok(HttpResponse::Ok())
 }
 
 //

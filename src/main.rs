@@ -50,6 +50,8 @@ async fn main() -> std::io::Result<()> {
             .service(routes::update_stock)
             .service(routes::delete_product)
 
+            .service(routes::buy_product)
+
             // Uploads
             .service(actix_files::Files::new("/uploads", "./db/uploads"));
 

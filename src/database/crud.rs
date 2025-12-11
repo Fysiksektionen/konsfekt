@@ -141,7 +141,7 @@ pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Resu
     Ok(())
 }
 
-pub async fn update_product_stock(pool: &SqlitePool, product: ProductRow, stock: Option<i32>) -> Result<(), AppError> {
+pub async fn update_product_stock(pool: &SqlitePool, id: u32, stock: Option<i32>) -> Result<(), AppError> {
     sqlx::query(
         r#"
         UPDATE Product SET 
@@ -149,20 +149,37 @@ pub async fn update_product_stock(pool: &SqlitePool, product: ProductRow, stock:
         WHERE id = ?
         "#)
         .bind(stock)
-        .bind(product.id)
+        .bind(id)
     .execute(pool)
     .await?;
 
     Ok(())
 }
 
-pub async fn delete_product(pool: &SqlitePool, product: ProductRow) -> Result<(), AppError> {
+pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), AppError> {
     sqlx::query(
         r#"
         DELETE FROM Product 
         WHERE id = ?
         "#
-    ).bind(product.id).execute(pool).await?;
+    ).bind(id).execute(pool).await?;
 
     Ok(())
+}
+
+pub async fn create_transaction(pool: &SqlitePool, mut transaction: Transaction) -> Result<Transaction, AppError> {
+    let id: u32 = sqlx::query_scalar(
+        r#"
+        INSERT INTO StoreTransaction (product, user, amount)
+        VALUES (?, ?, ?)
+        RETURNING id
+        "#
+    ).bind(transaction.product)
+    .bind(transaction.user)
+    .bind(transaction.amount)
+    .fetch_one(pool).await?;
+    
+    transaction.id = id;
+
+    Ok(transaction)
 }
