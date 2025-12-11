@@ -24,7 +24,7 @@ pub struct ProductRow {
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct Transaction {
     pub id: u32,
-    pub product: ProductRow,
-    pub user: User,
+    pub product: u32,
+    pub user: u32,
     pub amount: f32,
 }
