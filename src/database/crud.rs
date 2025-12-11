@@ -1,4 +1,5 @@
 use sqlx::{Result, SqlitePool};
+use time::UtcDateTime;
 
 use crate::{AppError, Role};
 
@@ -170,13 +171,14 @@ pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), AppError> 
 pub async fn create_transaction(pool: &SqlitePool, mut transaction: Transaction) -> Result<Transaction, AppError> {
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO StoreTransaction (product, user, amount)
-        VALUES (?, ?, ?)
+        INSERT INTO StoreTransaction (product, user, amount, datetime)
+        VALUES (?, ?, ?, ?)
         RETURNING id
         "#
     ).bind(transaction.product)
     .bind(transaction.user)
     .bind(transaction.amount)
+    .bind(UtcDateTime::now().unix_timestamp())
     .fetch_one(pool).await?;
     
     transaction.id = id;

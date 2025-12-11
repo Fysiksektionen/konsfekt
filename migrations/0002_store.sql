@@ -12,6 +12,7 @@ CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword
     product INTEGER NOT NULL,
     user INTEGER NOT NULL,
     amount REAL NOT NULL,
+    datetime INTEGER NOT NULL,
     FOREIGN KEY("product") REFERENCES Product("id") ON DELETE SET NULL,
     FOREIGN KEY("user") REFERENCES User("id") ON DELETE SET NULL
 );
