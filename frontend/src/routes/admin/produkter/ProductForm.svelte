@@ -13,9 +13,10 @@
  } from "sveltekit-superforms";
  import { zod4Client } from "sveltekit-superforms/adapters";
  
- let { validatedForm, onFormSubmit }: { 
+ let { validatedForm, onFormSubmit, isCreateForm }: { 
    validatedForm: SuperValidated<Infer<ProductFormSchema>>;
-   onFormSubmit: (products: any[]) => void;
+   onFormSubmit: (products: any[], changedProduct: number) => void;
+   isCreateForm: boolean;
   } = $props();
  
  const form = superForm(validatedForm, {
@@ -31,13 +32,19 @@
     let { image, ...product } = form.data;
 
     formData.append("product", new Blob([JSON.stringify(product)], { type: "application/json" }))
-    if (!image) {
-      return
+    if (image) {
+      formData.append("image", image);
     }
-    formData.append("image", image);
-    let products = await backendPOST("/create_product", formData)
-            .then(res => res.json());
-    onFormSubmit(products);
+    let products;
+    if (isCreateForm) {
+      products = await backendPOST("/create_product", formData)
+              .then(res => res.json());
+    } else {
+      products = await backendPOST("/update_product", formData)
+              .then(res => res.json());
+      // invalidate("/uploads/images/product/" + product.id + ".webp");
+    }
+    onFormSubmit(products, product.id);
   }
  });
  
@@ -124,11 +131,11 @@
     </Form.Field>
   </div>
   <div>
-    <Form.Button class="">
-      {#if $formData.id != undefined}
-        Uppdatera produkt 
-      {:else}
+    <Form.Button>
+      {#if isCreateForm}
         Lägg till produkt
+      {:else}
+        Uppdatera produkt 
       {/if}
     </Form.Button>
   </div>

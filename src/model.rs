@@ -11,6 +11,7 @@ pub struct ProductParams {
     pub flags: Option<String>
 }
 
+#[derive(Clone)]
 pub struct Product {
     pub id: u32,
     pub name: String,
@@ -21,7 +22,7 @@ pub struct Product {
 }
 
 impl Product {
-    pub fn from_params(params: ProductParams) -> Result<Product, ()> {
+    pub fn from_request(params: ProductParams) -> Result<Product, ()> {
         Ok(Product { 
             id: 0,
             name: params.name.ok_or(())?,
@@ -50,6 +51,7 @@ impl Product {
         if let Some(name) = params.name { self.name = name };
         if let Some(price) = params.price { self.price = price };
         if let Some(description) = params.description { self.description = description };
+        if let Some(stock) = params.stock { self.stock = Some(stock) };
 
         if let Some(flags) = params.flags {
             self.flags = ProductFlags::from_str(&flags)?;
@@ -81,7 +83,7 @@ impl ProductParams {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProductFlags {
     pub modifiable: bool, // is only modifiable by admin
     pub new_product: bool, // Example

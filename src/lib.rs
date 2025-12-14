@@ -126,6 +126,7 @@ impl AppState {
 pub enum AppError {
     ClientError(reqwest::Error),
     DatabaseError(sqlx::Error),
+    ActixError(actix_web::Error),
     GenericError(String),
 
     BadRequest(String),
@@ -138,6 +139,7 @@ pub enum AppError {
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
         let (status, message) = match &self {
+            Self::ActixError(e) => return e.error_response(),
             Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
             Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}")),
             Self::GenericError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("GenericError: {e}")),
@@ -152,12 +154,19 @@ impl ResponseError for AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            AppError::ActixError(err) => write!(f, "{}", err),
             AppError::ClientError(err) => write!(f, "Client error: {}", err),
             AppError::DatabaseError(err) => write!(f, "Database error: {}", err),
             AppError::GenericError(err) => write!(f, "Generic error: {}", err),
             AppError::SessionError(err) => write!(f, "Session error: {}", err),
             AppError::BadRequest(err) => write!(f, "Bad Request error: {}", err),
         }
+    }
+}
+
+impl From<actix_web::Error> for AppError {
+    fn from(err: actix_web::Error) -> Self {
+        AppError::ActixError(err)
     }
 }
 

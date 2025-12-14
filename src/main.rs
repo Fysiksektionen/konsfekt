@@ -1,5 +1,5 @@
 use actix_cors::Cors;
-use actix_web::http;
+use actix_web::{http, middleware::DefaultHeaders, web::scope};
 use konsfekt::{database, routes, AppState, EnvironmentVariables};
 
 use actix_web::{middleware, web::Data, App, HttpServer};
@@ -53,7 +53,9 @@ async fn main() -> std::io::Result<()> {
             .service(routes::buy_product)
 
             // Uploads
-            .service(actix_files::Files::new("/uploads", "./db/uploads"));
+            .service(scope("/uploads")
+                .wrap(DefaultHeaders::new().add(("Cache-Control", "public, max-age=0, must-revalidate")))
+                .service(actix_files::Files::new("", "./db/uploads")));
 
         if env.static_frontend {
             app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))

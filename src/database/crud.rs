@@ -5,7 +5,6 @@ use crate::{AppError, Role};
 
 use super::model::User;
 use super::model::ProductRow;
-use super::model::Transaction;
 
 //
 //          User

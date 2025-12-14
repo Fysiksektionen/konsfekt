@@ -22,15 +22,25 @@
   let updateProductForm = $state(data.form);
   let updateProductSheetOpen = $state(false);
 
-  function onFormSubmit(newProducts: any[]) {
+  let recentlyChangedProduct: number = $state(-1);
+
+  function onFormSubmit(newProducts: any[], changedProduct: number) {
+    recentlyChangedProduct = changedProduct;
     updateSearchStore(searchStore, newProducts);
     addProductSheetOpen = false;
     updateProductSheetOpen = false;
   }
+
+  function getImageURL(productId: number) {
+    let url = "/uploads/images/product/" + productId + ".webp";
+    if (productId == recentlyChangedProduct) {
+      url += "?t=" + Date.now();
+    }
+    return url;
+  }
   
   async function openUpdateProductSheet(product: any) {
     updateProductForm = await superValidate(product, zod4(productFormSchema));
-    console.log(updateProductForm)
     updateProductSheetOpen = true;
   }
   onMount(() => {
@@ -48,7 +58,7 @@
   <Sheet.Content>
     <Sheet.Header class="h-full">
       <Sheet.Title>Lägg till en ny produkt</Sheet.Title>
-      <ProductForm validatedForm={data.form} {onFormSubmit}/>
+      <ProductForm validatedForm={data.form} {onFormSubmit} isCreateForm={true}/>
     </Sheet.Header>
   </Sheet.Content>
 </Sheet.Root>
@@ -64,7 +74,7 @@
           Här kan du ändra information och pris för denna produkt.
         </p>
       </Sheet.Description>
-      <ProductForm validatedForm={updateProductForm} {onFormSubmit}/>
+      <ProductForm validatedForm={updateProductForm} {onFormSubmit} isCreateForm={false}/>
     </Sheet.Header>
   </Sheet.Content>
 </Sheet.Root>
@@ -75,11 +85,13 @@
          <p class="truncate text-left font-bold">{product.name}</p> 
          <div class="flex justify-between">
            <div class="overflow-hidden rounded-xl">
+           {#key recentlyChangedProduct}
              <img
-              src="/uploads/images/product/{product.id}.webp"
+              src={getImageURL(product.id)}
               alt={product.description}
               class="aspect-square h-[80px] object-cover"
              />
+           {/key}
            </div>
            <div class="flex flex-col justify-end">
              <p class="">{product.price}kr</p>

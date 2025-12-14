@@ -129,8 +129,8 @@ async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<User, 
     Ok(user)
 }
 
-async fn product_from_params(pool: &SqlitePool, params: &web::Json<ProductParams>) -> Result<Product, AppError> {
-    let id = params.id.ok_or(AppError::BadRequest("Missing required argument \"id\"".to_string()))?;
+async fn get_product_from_id(pool: &SqlitePool, id: Option<u32>) -> Result<Product, AppError> {
+    let id = id.ok_or(AppError::BadRequest("Missing required argument \"id\"".to_string()))?;
 
     let product_row = database::crud::get_product(pool, id).await?;
     let product = Product::from_row(product_row)
@@ -148,8 +148,8 @@ struct ProductAndImageForm {
 
 #[post("/api/create_product")]
 pub async fn create_product(state: Data<AppState>, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<impl Responder, AppError> {
-    let product = Product::from_params(form.product.into_inner())
-        .map_err(|_| AppError::BadRequest("Missing requierd arguments".to_string()))?;
+    let product = Product::from_request(form.product.into_inner())
+        .map_err(|_| AppError::BadRequest("Missing required arguments".to_string()))?;
     let product_row = database::crud::create_product(&state.db, product.into_row()).await?;
     
     if let Some(file) = form.image {
@@ -164,25 +164,33 @@ pub async fn create_product(state: Data<AppState>, MultipartForm(form): Multipar
 
 
 #[post("/api/update_product")]
-pub async fn update_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    let mut product = product_from_params(&state.db, &params).await?;
-    let params = params.into_inner();
+    let mut product = get_product_from_id(&state.db, form.product.id).await?;
+    let params = form.product.into_inner();
 
     product_assert_permission(&product, &user)?;
 
     product.update(params)
         .map_err(|_| AppError::BadRequest("Invalid formatting for \"flags\"".to_string()))?;
+    
+    database::crud::update_product_data(&state.db, product.clone().into_row()).await?;
 
-    database::crud::update_product_data(&state.db, product.into_row()).await?;
+    if let Some(file) = form.image {
+        if utils::save_img_to_disk(file, &product.id.to_string()).is_none() {
+            return Err(AppError::GenericError("Product image not saved".to_string())) 
+        }
+    }
 
-    Ok(HttpResponse::Ok())
+    let products = database::crud::get_products(&state.db).await?;
+
+    Ok(HttpResponse::Ok().json(products))
 }
 
 #[post("/api/update_stock")]
 pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    let product = product_from_params(&state.db, &params).await?;
+    let product = get_product_from_id(&state.db, params.id).await?;
     let params = params.into_inner();
 
     product_assert_permission(&product, &user)?;
@@ -194,7 +202,7 @@ pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::
 #[post("/api/delete_product")]
 pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    let product = product_from_params(&state.db, &params).await?;
+    let product = get_product_from_id(&state.db, params.id).await?;
 
     product_assert_permission(&product, &user)?;
     database::crud::delete_product(&state.db, product.id).await?;
