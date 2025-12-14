@@ -1,6 +1,7 @@
 use sqlx::{Result, SqlitePool};
 use time::UtcDateTime;
 
+use crate::database::model::Transaction;
 use crate::{AppError, Role};
 
 use super::model::User;

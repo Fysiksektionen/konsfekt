@@ -24,7 +24,7 @@
 
   let recentlyChangedProduct: number = $state(-1);
 
-  function onFormSubmit(newProducts: any[], changedProduct: number) {
+  function onFormSubmit(newProducts: any[], changedProduct: number | undefined) {
     recentlyChangedProduct = changedProduct;
     updateSearchStore(searchStore, newProducts);
     addProductSheetOpen = false;

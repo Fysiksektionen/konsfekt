@@ -12,10 +12,11 @@
   fileProxy,
  } from "sveltekit-superforms";
  import { zod4Client } from "sveltekit-superforms/adapters";
+    import Button from "$lib/components/ui/button/button.svelte";
  
  let { validatedForm, onFormSubmit, isCreateForm }: { 
    validatedForm: SuperValidated<Infer<ProductFormSchema>>;
-   onFormSubmit: (products: any[], changedProduct: number) => void;
+   onFormSubmit: (products: any[], changedProduct: number | undefined) => void;
    isCreateForm: boolean;
   } = $props();
  
@@ -35,29 +36,40 @@
     if (image) {
       formData.append("image", image);
     }
-    let products;
+
+    let response;
     if (isCreateForm) {
-      products = await backendPOST("/create_product", formData)
-              .then(res => res.json());
+      response = await backendPOST("/create_product", formData, false);
     } else {
-      products = await backendPOST("/update_product", formData)
-              .then(res => res.json());
-      // invalidate("/uploads/images/product/" + product.id + ".webp");
+      response = await backendPOST("/update_product", formData, false);
     }
+
+    let products = await response.json();
+
     onFormSubmit(products, product.id);
   }
+
  });
+
+ async function removeProduct() {
+   let id = validatedForm.data.id;
+   let response = await backendPOST("/delete_product", { id }, true)
+   let products = await response.json();
+   onFormSubmit(products, id)
+ }
  
  const { form: formData, enhance } = form;
  const file = fileProxy(form, "image");
 
- const imgURL = $derived.by(() => {
+ let imgURL = $derived.by(() => {
    if ($file.item(0)) {
      return URL.createObjectURL($file.item(0)!);
    } else if ($formData.id != undefined) {
      return "/uploads/images/product/" + $formData.id + ".webp";
    }
  });
+  
+ let showRemoveButton = $state(false);
 </script>
  
 <form method="POST" enctype="multipart/form-data" use:enhance class="flex flex-col justify-between h-full">
@@ -131,6 +143,7 @@
     </Form.Field>
   </div>
   <div>
+  <div class="flex w-full md:justify-between md:flex-row gap-3 flex-col-reverse">
     <Form.Button>
       {#if isCreateForm}
         Lägg till produkt
@@ -138,5 +151,22 @@
         Uppdatera produkt 
       {/if}
     </Form.Button>
+    <div class="flex">
+    {#if showRemoveButton && !isCreateForm}
+      <div class="flex flex-row-reverse md:flex-row">
+        <Button variant="link" class="text-foreground" onclick={() => showRemoveButton = false}>
+          Dölj
+        </Button>
+        <Button variant="destructive" onclick={async () => await removeProduct()}>
+          Ta bort produkt
+        </Button>
+      </div>
+    {:else if !isCreateForm}
+      <Button variant="link" class="text-foreground" onclick={() => showRemoveButton = true}>
+        Visa dolda alternativ
+      </Button>
+    {/if}
+    </div>
+  </div>
   </div>
 </form>

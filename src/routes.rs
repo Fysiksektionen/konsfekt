@@ -199,15 +199,20 @@ pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::
     Ok(HttpResponse::Ok())
 }
 
+#[derive(serde::Deserialize)]
+struct ProductDeletionParams { id: u32 }
+
 #[post("/api/delete_product")]
-pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
+pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductDeletionParams>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    let product = get_product_from_id(&state.db, params.id).await?;
+    let product = get_product_from_id(&state.db, Some(params.id)).await?;
 
     product_assert_permission(&product, &user)?;
     database::crud::delete_product(&state.db, product.id).await?;
 
-    Ok(HttpResponse::Ok())
+    let products = database::crud::get_products(&state.db).await?;
+
+    Ok(HttpResponse::Ok().json(products))
 }
 
 #[get("/api/get_products")]

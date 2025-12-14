@@ -68,11 +68,17 @@ export function updateSearchStore<T extends object>(store: SearchStore<T>, newDa
     store.filtered = newData;
 }
 
-export async function backendPOST(endpoint: string, payload: any) {
-    return fetch("/api" + endpoint, {
+export async function backendPOST(endpoint: string, payload: any, json: boolean) {
+    let options: RequestInit = {
         method: "POST",
-        body: payload,
         credentials: "include"
-    })
+    };
+    if (json) {
+        options.body = JSON.stringify(payload);
+        options.headers = { "Content-Type": "application/json" };
+    } else {
+        options.body = payload;
+    }
+    return fetch("/api" + endpoint, options)
 }
 
