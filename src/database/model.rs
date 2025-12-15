@@ -1,4 +1,4 @@
-use crate::Role;
+use crate::{Role, model::ProductFlags};
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct User {
@@ -17,7 +17,7 @@ pub struct ProductRow {
     pub price: f32,
     pub description: String,
     pub stock: Option<i32>,
-    pub flags: String,
+    pub flags: sqlx::types::Json<ProductFlags>,
 }
 
 

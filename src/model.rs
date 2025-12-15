@@ -8,7 +8,7 @@ pub struct ProductParams {
     pub price: Option<f32>,
     pub description: Option<String>,
     pub stock: Option<i32>,
-    pub flags: Option<String>
+    pub flags: Option<ProductFlags>
 }
 
 #[derive(Clone)]
@@ -30,7 +30,7 @@ impl Product {
             description: params.description.unwrap_or("".to_string()),
             stock: None,
             flags: match params.flags {
-                Some(flags) => ProductFlags::from_str(&flags)?,
+                Some(flags) => flags,
                 None => ProductFlags::default(),
             },
         })
@@ -43,7 +43,7 @@ impl Product {
             price: row.price,
             description: row.description,
             stock: row.stock,
-            flags: ProductFlags::from_str(&row.flags)?, 
+            flags: row.flags.0
         })
     }
 
@@ -54,7 +54,7 @@ impl Product {
         if let Some(stock) = params.stock { self.stock = Some(stock) };
 
         if let Some(flags) = params.flags {
-            self.flags = ProductFlags::from_str(&flags)?;
+            self.flags = flags;
         };
 
         Ok(())
@@ -67,23 +67,13 @@ impl Product {
             price: self.price,
             description: self.description,
             stock: self.stock,
-            flags: self.flags.to_string()
+            flags: sqlx::types::Json(self.flags)
         }
     }
 
 }
 
-impl ProductParams {
-    pub fn get_flags(&self) -> Result<ProductFlags, ()> {
-        let Some(flags) = self.flags.clone() else { return Err(()) };
-        match serde_json::from_str(&flags) {
-            Ok(f) => Ok(f),
-            Err(_) => Err(())
-        }
-    }
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ProductFlags {
     pub modifiable: bool, // is only modifiable by admin
     pub new_product: bool, // Example

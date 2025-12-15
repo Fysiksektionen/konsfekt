@@ -23,4 +23,4 @@ image = "0.25.9"
 [dependencies.sqlx]
 version = "0.8"
 default-features = false
-features = ["macros", "migrate", "runtime-tokio", "tls-native-tls", "sqlite", "time", "uuid"]
+features = ["macros", "migrate", "runtime-tokio", "tls-native-tls", "sqlite", "time", "uuid", "json"]
