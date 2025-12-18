@@ -1,2 +1,1 @@
-export type ProductInCart = { id: string, amount: number };
-export const cart: { products: ProductInCart[] } = $state({ products: [] });
+export const cart: { products: Record<string, number> } = $state({ products: {} });

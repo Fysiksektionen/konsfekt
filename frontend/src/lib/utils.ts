@@ -69,44 +69,6 @@ export function updateSearchStore<T extends object>(store: SearchStore<T>, newDa
     store.filtered = newData;
 }
 
-export function useLocalStorage(key: string): { value: any };
-export function useLocalStorage(key: string, initialValue: any): { value: any };
-export function useLocalStorage(key: string, initialValue?: any) {
-    if (initialValue) {
-        let store = writable(initialValue);
-
-        store.subscribe((value) => {
-            localStorage.setItem(key, value);
-        })
-        return store;
-    } else {
-
-    }
-    let value = initialValue; 
-    onMount(() => {
-      const currentValue = localStorage.getItem(key);
-      if (currentValue) value = JSON.parse(currentValue);
-    });
-    
-    const save = () => {
-      if (value) {
-        localStorage.setItem(key, JSON.stringify(value));
-      } else {
-        localStorage.removeItem(key);
-      }
-    };
-    
-    return {
-      get value() {
-        return value;
-      },
-      set value(v) {
-        value = v;
-        save();
-      },
-    };
-};
-
 export async function backendPOST(endpoint: string, payload: any, json: boolean) {
     let options: RequestInit = {
         method: "POST",
