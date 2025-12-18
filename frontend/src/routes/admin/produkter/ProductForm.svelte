@@ -124,7 +124,7 @@
       <Form.FieldErrors />
     </Form.Field>
     
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-col md:flex-row">
       <Form.Field {form} name="image">
         <Form.Control>
           {#snippet children({ props })}
@@ -159,7 +159,7 @@
         <Form.FieldErrors />
       </Form.Field>
       
-      <div class="flex gap-1 flex-col">
+      <div class="flex pt-3 gap-1 flex-col">
         <Form.Field {form} name="flags.modifiable">
           <Form.Control>
             {#snippet children({ props })}

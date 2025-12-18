@@ -1,6 +1,9 @@
 import type { PageLoad } from './$types';
-import { getUser } from '$lib/utils';
 
 export const load: PageLoad = async ({ fetch }) => {
-    return getUser(fetch)
+    let products = await fetch('/api/get_products')
+            .then(res => res.json());
+    return {
+        products,
+    }
 };

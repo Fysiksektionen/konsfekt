@@ -1,5 +1,7 @@
 import { error, redirect } from "@sveltejs/kit";
 import { clsx, type ClassValue } from "clsx";
+import { onMount } from "svelte";
+import { writable } from "svelte/store";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -12,7 +14,6 @@ export type WithoutChild<T> = T extends { child?: any } ? Omit<T, "child"> : T;
 export type WithoutChildren<T> = T extends { children?: any } ? Omit<T, "children"> : T;
 export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
 export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
-
 
 export async function getUser(fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
     if (import.meta.env.SSR) {
@@ -67,6 +68,44 @@ export function updateSearchStore<T extends object>(store: SearchStore<T>, newDa
     store.data = newData;
     store.filtered = newData;
 }
+
+export function useLocalStorage(key: string): { value: any };
+export function useLocalStorage(key: string, initialValue: any): { value: any };
+export function useLocalStorage(key: string, initialValue?: any) {
+    if (initialValue) {
+        let store = writable(initialValue);
+
+        store.subscribe((value) => {
+            localStorage.setItem(key, value);
+        })
+        return store;
+    } else {
+
+    }
+    let value = initialValue; 
+    onMount(() => {
+      const currentValue = localStorage.getItem(key);
+      if (currentValue) value = JSON.parse(currentValue);
+    });
+    
+    const save = () => {
+      if (value) {
+        localStorage.setItem(key, JSON.stringify(value));
+      } else {
+        localStorage.removeItem(key);
+      }
+    };
+    
+    return {
+      get value() {
+        return value;
+      },
+      set value(v) {
+        value = v;
+        save();
+      },
+    };
+};
 
 export async function backendPOST(endpoint: string, payload: any, json: boolean) {
     let options: RequestInit = {
