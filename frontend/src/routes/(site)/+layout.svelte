@@ -36,7 +36,11 @@
       </Button>
     {/if}
 
-    <Button variant="secondary" size="icon" class="{page.url.pathname.replaceAll("/", "") ? 'hidden' : ''} size-12" href="/profil">
+    <Button 
+      variant="secondary" 
+      size="icon" 
+      class="{page.url.pathname.replaceAll("/", "") ? 'hidden' : ''} size-12" 
+      href="/profil">
       <AccountIcon class="size-8 text-card-foreground"/>
     </Button>
   </div>

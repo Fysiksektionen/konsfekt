@@ -15,8 +15,7 @@
       />
     </div>
     <div class="flex justify-center w-full">
-
-    <span>{product.price} kr</span>
+      <span class="text-2xl font-mono font-semibold">{product.price}kr</span> 
     </div>
     <div class="flex justify-between items-center">
       {#if addedToCart == 0}
@@ -30,8 +29,4 @@
       {/if}
       <Button onclick={() => addedToCart++}>+</Button>
     </div>
-    {#if addedToCart}
-      <div class="m-2 absolute top-0 right-0">
-      </div>
-    {/if}
 </div>
