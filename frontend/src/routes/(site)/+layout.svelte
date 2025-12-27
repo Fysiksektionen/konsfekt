@@ -39,7 +39,7 @@
     <Button 
       variant="secondary" 
       size="icon" 
-      class="{page.url.pathname.replaceAll("/", "") ? 'hidden' : ''} size-12" 
+      class="{page.url.pathname.replaceAll("/", "") == "profil" ? 'hidden' : ''} size-12" 
       href="/profil">
       <AccountIcon class="size-8 text-card-foreground"/>
     </Button>
