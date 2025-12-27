@@ -6,7 +6,7 @@
   let { product, addedToCart = $bindable(0) } = $props();
 </script>
 
-<div class="grid grid-cols-[auto_1fr] w-full md:w-4/5 bg-card p-2 rounded-md border">
+<div class="grid grid-cols-[auto_1fr] gap-3 w-full md:w-4/5 bg-card p-2 rounded-md border">
   <div class="overflow-hidden rounded-xl">
     <img
      src="/uploads/images/product/{product.id}.webp"
