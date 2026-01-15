@@ -10,6 +10,20 @@
   let total = $derived(productsInCart.reduce((sum: number, p: Product) => sum + p.price * cart.products[p.id], 0))
 </script>
 
+{#snippet productSum()}
+  {#each productsInCart as product, i}
+    <div class="flex">
+      <span class="font-mono font-semibold">{product.price}</span>
+      {#if cart.products[product.id] > 1}
+      <span>x</span><span class="font-mono font-semibold">{cart.products[product.id]}</span> 
+      {/if}
+    </div>
+    {#if i < productsInCart.length - 1}
+    <span>+</span> 
+    {/if}
+  {/each}
+{/snippet}
+
 <div class="flex flex-col w-full justify-center items-center gap-3">
   {#each productsInCart as product}
     <CartProductDisplay {product} bind:addedToCart={cart.products[product.id]}/> 
@@ -18,30 +32,22 @@
     <div class="h-56">
     </div>
     <div class="fixed flex flex-col md:grid grid-cols-2 bg-background p-3 rounded-t-xl border-4 border-b-0 border-primary bottom-0 h-fit w-4/5">
-      <div>
+      <div class="hidden md:flex flex-col">
         <p class="text-2xl text-card-foreground">Total</p>
         <span class="text-5xl font-mono font-semibold">{total}kr</span> 
         <div class="flex gap-1 flex-wrap">
-          (
-          {#each productsInCart as product, i}
-            <div class="flex">
-              <span class="font-mono font-semibold">{product.price}</span>
-              {#if cart.products[product.id] > 1}
-              <span>x</span><span class="font-mono font-semibold">{cart.products[product.id]}</span> 
-              {/if}
-            </div>
-            {#if i < productsInCart.length - 1}
-            <span>+</span> 
-            {/if}
-          {/each}
-          )
+          =
+          {@render productSum()}
         </div>
       </div>
-      <div class="flex justify-center items-center">
-        <Button class="">
+      <div class="flex flex-col gap-3 justify-center items-center">
+        <Button class="md:scale-200 scale-150">
           <p class="text-card-foreground">Betala</p>
           <span class="font-mono font-semibold">{total}kr</span> 
         </Button>
+        <div class="flex gap-1 flex-wrap md:hidden">
+            ( {@render productSum()} )
+        </div>
       </div>
     </div>
   {:else}

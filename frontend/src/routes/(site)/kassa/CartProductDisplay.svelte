@@ -23,17 +23,17 @@
         </div>
         <div class="flex items-center gap-3">
           {#if addedToCart == 1}
-            <Button onclick={() => addedToCart--}>
+            <Button variant="outline" onclick={() => addedToCart--}>
               <RemoveIcon class="text-card-foreground"/>
             </Button>
           {:else}
-            <Button onclick={() => addedToCart--}>-</Button>
+            <Button variant="outline" onclick={() => addedToCart--}>-</Button>
           {/if}
           <div class="flex gap-1 justify-center">
             <ShoppingCartIcon/>
             <span>{addedToCart}</span>
           </div>
-          <Button onclick={() => addedToCart++}>+</Button>
+          <Button variant="outline" onclick={() => addedToCart++}>+</Button>
         </div>
       </div>
 
