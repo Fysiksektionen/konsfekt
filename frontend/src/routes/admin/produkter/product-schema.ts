@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { optional } from "zod/v3";
 
 const imageFileValidator = (file: File | undefined) => {
     if (file) {

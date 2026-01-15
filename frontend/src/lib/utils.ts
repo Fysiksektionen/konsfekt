@@ -15,7 +15,9 @@ export type WithoutChildren<T> = T extends { children?: any } ? Omit<T, "childre
 export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
 export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
 
-export async function getUser(fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
+type svelteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+export async function getUser(fetch: svelteFetch) {
     if (import.meta.env.SSR) {
         return {
             user: {
@@ -37,6 +39,16 @@ export async function getUser(fetch: (input: RequestInfo | URL, init?: RequestIn
     return {
         user: await response.json()
     }
+}
+
+export async function getProducts(fetch: svelteFetch) {
+    if (import.meta.env.SSR) {
+        return { products: [] }
+    }
+    let response = await fetch('/api/get_products');
+    return {
+        products: await response.json()
+    } 
 }
 
 type SearchStore<T extends object> = {

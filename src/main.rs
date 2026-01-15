@@ -1,5 +1,5 @@
 use actix_cors::Cors;
-use actix_web::{http, middleware::DefaultHeaders, web::scope};
+use actix_web::{http, middleware::DefaultHeaders, web::{scope, service}};
 use konsfekt::{database, routes, AppState, EnvironmentVariables};
 
 use actix_web::{middleware, web::Data, App, HttpServer};
@@ -30,7 +30,7 @@ async fn main() -> std::io::Result<()> {
         if env.is_debug {
             cors = cors.allowed_origin(&env_clone.frontend_url);
         }
-        let app = App::new()
+        let mut app = App::new()
             .wrap(middleware::from_fn(routes::session_middleware))
             .wrap(middleware::from_fn(routes::permission_middleware))
             .app_data(Data::new(AppState::from(pool.clone(), env_clone.clone())))
@@ -56,6 +56,10 @@ async fn main() -> std::io::Result<()> {
             .service(scope("/uploads")
                 .wrap(DefaultHeaders::new().add(("Cache-Control", "public, max-age=0, must-revalidate")))
                 .service(actix_files::Files::new("", "./db/uploads")));
+
+        if env.is_debug {
+            app = app.service(routes::debug_add_money);
+        }
 
         if env.static_frontend {
             app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))

@@ -4,6 +4,9 @@
 	import type { PageProps } from './$types';
   import ProductDisplay from './ProductDisplay.svelte';
   import { cart } from '$lib/storage.svelte';
+  import { toast } from "svelte-sonner";
+    import { backendPOST } from '$lib/utils';
+    import { invalidateAll } from '$app/navigation';
 
 	let { data }: PageProps = $props();
 
@@ -12,6 +15,20 @@
       cart.products[p.id] = 0;
     }
   })
+
+  async function debug_add_money() {
+    toast.promise(
+      backendPOST("/debug/add_money", { amount: 500 }, true),
+      {
+        loading: "Lägger till saldo",
+        success: () => {
+          invalidateAll();
+          return "500 kr tillagt"
+        },
+        error: "Något gick fel"
+      }
+    )
+  }
 </script>
 
 
@@ -23,7 +40,7 @@
       <span class="text-5xl font-mono font-semibold">{data.user.balance}kr</span> 
     </div>
 
-  <Button class="text-2xl text-card-foreground" variant="secondary">Lägg till pengar</Button>
+  <Button onclick={() => debug_add_money()} class="text-2xl text-card-foreground" variant="secondary">Lägg till pengar</Button>
   
   <!--
   <div class="flex w-full flex-col items-center gap-2">

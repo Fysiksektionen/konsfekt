@@ -82,7 +82,7 @@
 </script>
  
 <div class="w-full">
-  <div class="flex items-center py-4 gap-3">
+  <div class="flex md:flex-row flex-col-reverse items-center py-4 gap-3">
     <Input
       placeholder="Sök efter transaktion..."
       value={(table.getColumn("description")?.getFilterValue() as string) ?? ""}

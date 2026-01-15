@@ -88,6 +88,19 @@ pub async fn permission_middleware(
     }
 }
 
+pub async fn debug_middleware(
+    state: Data<AppState>,
+    req: ServiceRequest,
+    next: middleware::Next<BoxBody>
+) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
+    let path = req.path();
+
+    if path.starts_with("/api/debug") && !state.env.is_debug {
+        return Err(actix_web::error::ErrorUnauthorized("Debug mode is not activated"))
+    }
+    next.call(req).await
+}
+
 //
 //              API
 //
@@ -326,4 +339,21 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .cookie(cookie)
         .finish()
     )
+}
+
+//
+//      Debug
+//
+
+
+#[derive(serde::Deserialize)]
+struct MoneyParams { amount: f32 }
+
+#[post("/api/debug/add_money")]
+pub async fn debug_add_money(state: Data<AppState>, req: HttpRequest, params: web::Json<MoneyParams>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let new_balance = user.balance + params.amount;
+    crud::update_user_balance(&state.db, user.id, new_balance).await?;
+
+    Ok(HttpResponse::Ok())
 }

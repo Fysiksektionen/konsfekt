@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Toaster } from "$lib/components/ui/sonner/index.js";
   import AccountIcon from "@lucide/svelte/icons/user-round-cog";
   import Button from '$lib/components/ui/button/button.svelte';
   import ShoppingCartIcon from "@lucide/svelte/icons/shopping-basket";
@@ -19,6 +20,8 @@
     localStorage.setItem("cart", stringCart)
   })
 </script>
+
+<Toaster />
 
 <nav class="fixed items-center h-16 z-10 justify-between text-secondary-foreground top-0 text-2xl p-2 flex w-full bg-background border-b border-primary"> <div class="flex items-center gap-5">
     <Button class="text-3xl bg-primary text-background rounded-md p-2 text-shadow-2xs text-shadow-accent" href="/">
