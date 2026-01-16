@@ -50,6 +50,7 @@ async fn main() -> std::io::Result<()> {
             .service(routes::delete_product)
 
             .service(routes::buy_products)
+            .service(routes::mark_sold_out)
 
             // Uploads
             .service(scope("/uploads")

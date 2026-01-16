@@ -53,7 +53,7 @@ export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     let filtered_products = [];
     let filtered_cart_products: Record<string, number> = {}; 
     for (const p of products) {
-        if (!(onlyAvailable && !p.stock)) {
+        if (!(onlyAvailable && p.stock == null)) {
             filtered_products.push(p);
             filtered_cart_products[p.id] = cart.products[p.id];
         }

@@ -121,35 +121,6 @@ pub async fn get_products(pool: &SqlitePool) -> Result<Vec<ProductRow>, AppError
     Ok(products)
 }
 
-pub async fn create_sold_out_mark(pool: &SqlitePool, product: u32, user: u32) -> Result<(), AppError> {
-    sqlx::query(
-        r#"
-        INSERT INTO SoldOutMark (product, user)
-        VALUES (?, ?)
-        "#).bind(product).bind(user).execute(pool).await?;
-
-    Ok(())
-}
-
-pub async fn get_number_of_sold_out_mark(pool: &SqlitePool, product: u32) -> Result<u32, AppError> {
-    let sold_out_marks: u32 = sqlx::query_scalar(r#"
-        SELECT COUNT(*)
-        FROM SoldOutMark
-        WHERE product = ?
-        "#).bind(product).fetch_one(pool).await?;
-
-    Ok(sold_out_marks)
-}
-
-pub async fn clear_sold_out_marks(pool: &SqlitePool, product: u32) -> Result<(), AppError> {
-    sqlx::query(r#"
-        DELETE FROM SoldOutMark
-        WHERE product = ?
-        "#).bind(product).execute(pool).await?;
-
-    Ok(())
-}
-
 pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Result<(), AppError> {
     sqlx::query(
         r#"

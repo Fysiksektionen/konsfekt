@@ -26,7 +26,7 @@
       {#if undefinedStock}
         <ArchiveXIcon class="text-yellow-300"/> <p>Produkten finns inte med i sortimentet</p>
       {:else if negativeStock}
-        <WarningCircleIcon class="text-yellow-300"/> <p>Produkt har negativ lagerstatus</p>
+        <WarningCircleIcon class="text-yellow-300"/> <p>Produktens lagerstatus är inte positivt</p>
       {/if}
     </div>
     <div class="flex gap-2">

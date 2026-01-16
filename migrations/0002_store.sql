@@ -24,12 +24,3 @@ CREATE TABLE TransactionItem (
     FOREIGN KEY("transaction_id") REFERENCES StoreTransaction("id") ON DELETE CASCADE,
     FOREIGN KEY("product") REFERENCES Product("id") ON DELETE SET NULL
 );
-
-CREATE TABLE SoldOutMark (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product INTEGER NOT NULL,
-    user INTEGER NOT NULL,
-    FOREIGN KEY("product") REFERENCES Product("id") ON DELETE SET NULL,
-    FOREIGN KEY("user") REFERENCES User("id") ON DELETE SET NULL,
-    UNIQUE(product, user)
-);

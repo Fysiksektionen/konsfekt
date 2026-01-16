@@ -25,7 +25,7 @@
       await goto("/");
       invalidateAll();
       cart.products = {};
-      toast.success(`Ditt köp har på ${spent}kr har genomförts`)
+      toast.success(`Ditt köp på ${spent}kr har genomförts`)
     }
   }
 

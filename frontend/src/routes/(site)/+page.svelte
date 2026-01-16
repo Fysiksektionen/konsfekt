@@ -53,10 +53,8 @@
 
   
 
-  <div class="flex w-full flex-col items-center gap-2">
-    <div class="flex w-full justify-start">
-      <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Alla produkter</h3>
-    </div>
+  <div class="flex w-full flex-col items-start gap-2">
+    <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Alla produkter</h3>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
       {#each data.products as product}
         <ProductDisplay {product} bind:addedToCart={cart.products[product.id]}/>

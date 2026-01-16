@@ -173,13 +173,9 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
     
     product.update(params);
 
-    // Clear sold out marks if restocked
-    if product.stock.is_some_and(|s| s > 0) {
-        database::crud::clear_sold_out_marks(&state.db, product.id).await?;
-        product.flags.marked_sold_out = false;
-    }
-    if product.stock.is_none() {
-        product.flags.marked_sold_out = false;
+    // Remove marked as sold if restocked
+    if product.stock.is_some_and(|s| s > 0) || product.stock.is_none() {
+        product.flags.marked_sold_out = false; 
     }
     
     database::crud::update_product_data(&state.db, product.clone().into_row()).await?;
@@ -196,19 +192,14 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
 }
 
 #[post("/api/mark_sold_out")]
-pub async fn mark_sold_out(state: Data<AppState>, req: HttpRequest, query: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
-    let user = user_from_cookie(&state.db, &req).await?;
-    let mut product = get_product_from_id(&state.db, Some(query.id)).await?;
+pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
+    let mut product = get_product_from_id(&state.db, Some(params.id)).await?;
 
     if product.stock.is_none() {
         return Err(AppError::ActixError(actix_web::error::ErrorConflict("Cannot mark product not for sale as sold out")));
     }
     
-    database::crud::create_sold_out_mark(&state.db, query.id, user.id).await?;
-
-    let sold_out_marks = database::crud::get_number_of_sold_out_mark(&state.db, query.id).await?;
-
-    product.flags.marked_sold_out = sold_out_marks > 0;
+    product.flags.marked_sold_out = true;
 
     database::crud::update_product_data(&state.db, product.clone().into_row()).await?;
 
