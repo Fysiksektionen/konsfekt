@@ -117,7 +117,7 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
 fn product_assert_permission(product: &Product, user: &User) -> Result<(), AppError> {
     // Check if product may be modified
     if !product.flags.modifiable && user.role != Role::Admin {
-        return Err(AppError::GenericError("Access Denied".to_string()));
+        return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Product not modifiable")));
     }
 
     Ok(())
@@ -172,6 +172,15 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
     product_assert_permission(&product, &user)?;
     
     product.update(params);
+
+    // Clear sold out marks if restocked
+    if product.stock.is_some_and(|s| s > 0) {
+        database::crud::clear_sold_out_marks(&state.db, product.id).await?;
+        product.flags.marked_sold_out = false;
+    }
+    if product.stock.is_none() {
+        product.flags.marked_sold_out = false;
+    }
     
     database::crud::update_product_data(&state.db, product.clone().into_row()).await?;
 
@@ -186,11 +195,31 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
     Ok(HttpResponse::Ok().json(products))
 }
 
+#[post("/api/mark_sold_out")]
+pub async fn mark_sold_out(state: Data<AppState>, req: HttpRequest, query: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let mut product = get_product_from_id(&state.db, Some(query.id)).await?;
+
+    if product.stock.is_none() {
+        return Err(AppError::ActixError(actix_web::error::ErrorConflict("Cannot mark product not for sale as sold out")));
+    }
+    
+    database::crud::create_sold_out_mark(&state.db, query.id, user.id).await?;
+
+    let sold_out_marks = database::crud::get_number_of_sold_out_mark(&state.db, query.id).await?;
+
+    product.flags.marked_sold_out = sold_out_marks > 0;
+
+    database::crud::update_product_data(&state.db, product.clone().into_row()).await?;
+
+    Ok(HttpResponse::Ok())
+}
+
 #[derive(serde::Deserialize)]
-struct ProductDeletionParams { id: u32 }
+struct ProductIdJson { id: u32 }
 
 #[post("/api/delete_product")]
-pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductDeletionParams>) -> Result<impl Responder, AppError> {
+pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
     let product = get_product_from_id(&state.db, Some(params.id)).await?;
 

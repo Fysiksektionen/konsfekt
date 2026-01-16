@@ -16,6 +16,7 @@
  import { zod4Client } from "sveltekit-superforms/adapters";
     import Button from "$lib/components/ui/button/button.svelte";
     import Switch from "$lib/components/ui/switch/switch.svelte";
+    import ProductWarnings from "./ProductWarnings.svelte";
  
  let { validatedForm, onFormSubmit, isCreateForm }: { 
    validatedForm: SuperValidated<Infer<ProductFormSchema>>;
@@ -186,13 +187,7 @@
       </div>
     </div>
     {#if !isCreateForm}
-      <div class="flex gap-2">
-        {#if $formData.stock == null || $formData.stock == undefined}
-          <OutOfStockIcon class="text-yellow-300"/> <p>Produkten finns inte med i sortimentet</p>
-        {:else if $formData.stock <= 0}
-          <WarningCircleIcon class="text-yellow-300"/> <p>Produkt har negativ lagerstatus</p>
-        {/if}
-      </div>
+      <ProductWarnings product={$formData} short={false}/>
     {/if}
   </div>
   <div class="flex w-full md:justify-between md:flex-row gap-3 flex-col-reverse">

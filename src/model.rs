@@ -75,6 +75,7 @@ impl Product {
 pub struct ProductFlags {
     pub modifiable: bool, // is only modifiable by admin
     pub new_product: bool, // Example
+    pub marked_sold_out: bool,
 }
 
 impl ProductFlags {
@@ -82,6 +83,7 @@ impl ProductFlags {
         ProductFlags { 
             modifiable: true,
             new_product: false,
+            marked_sold_out: false,
         }
     }
 

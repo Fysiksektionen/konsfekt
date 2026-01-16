@@ -42,7 +42,7 @@ export async function getUser(fetch: svelteFetch) {
     }
 }
 
-export async function getProducts(fetch: svelteFetch) {
+export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     if (import.meta.env.SSR) {
         return { products: [] }
     }
@@ -50,14 +50,18 @@ export async function getProducts(fetch: svelteFetch) {
     let products = await response.json();
     
     // Filter cart so removed products dont appear
+    let filtered_products = [];
     let filtered_cart_products: Record<string, number> = {}; 
     for (const p of products) {
-        filtered_cart_products[p.id] = cart.products[p.id];
+        if (!(onlyAvailable && !p.stock)) {
+            filtered_products.push(p);
+            filtered_cart_products[p.id] = cart.products[p.id];
+        }
     }
     cart.products = filtered_cart_products;
 
     return {
-        products
+        products: filtered_products
     } 
 }
 
