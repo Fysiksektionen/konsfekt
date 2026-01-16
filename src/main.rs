@@ -1,5 +1,5 @@
 use actix_cors::Cors;
-use actix_web::{http, middleware::DefaultHeaders, web::{scope, service}};
+use actix_web::{http, middleware::DefaultHeaders, web::scope};
 use konsfekt::{database, routes, AppState, EnvironmentVariables};
 
 use actix_web::{middleware, web::Data, App, HttpServer};
@@ -47,10 +47,9 @@ async fn main() -> std::io::Result<()> {
             .service(routes::create_product)
             .service(routes::get_products)
             .service(routes::update_product)
-            .service(routes::update_stock)
             .service(routes::delete_product)
 
-            .service(routes::buy_product)
+            .service(routes::buy_products)
 
             // Uploads
             .service(scope("/uploads")

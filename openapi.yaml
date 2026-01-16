@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: Store API
+  description: |
+    API for user authentication, product management, and transactions.
+    Authentication is handled using an HTTP-only session cookie.
+  version: 1.0.0
+
+servers:
+  - url: /
+
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: AUTH_COOKIE
+
+  schemas:
+    Role:
+      type: string
+      enum: [Admin, User]
+
+    UserResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+        balance:
+          type: number
+          format: float
+        role:
+          $ref: "#/components/schemas/Role"
+      required: [email, balance, role]
+
+    Product:
+      type: object
+      description: Product model returned from database
+      additionalProperties: true
+
+    ProductParams:
+      type: object
+      additionalProperties: true
+
+    ProductDeletionParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required: [id]
+
+    ProductInCart:
+      type: object
+      properties:
+        id:
+          type: integer
+        quantity:
+          type: integer
+      required: [id, quantity]
+
+    Cart:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductInCart"
+      required: [products]
+
+    MoneyParams:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+      required: [amount]
+
+paths:
+
+  /api/get_user:
+    get:
+      summary: Get current user
+      security:
+        - SessionCookie: []
+      responses:
+        "200":
+          description: Current authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Unauthorized
+
+  /api/get_products:
+    get:
+      summary: Get all products
+      security:
+        - SessionCookie: []
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /api/create_product:
+    post:
+      summary: Create product
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                product:
+                  $ref: "#/components/schemas/ProductParams"
+                image:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Updated product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /api/update_product:
+    post:
+      summary: Update product
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                product:
+                  $ref: "#/components/schemas/ProductParams"
+                image:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Updated product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+        "401":
+          description: Access denied
+
+  /api/update_stock:
+    post:
+      summary: Update product stock
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductParams"
+      responses:
+        "200":
+          description: Stock updated
+        "401":
+          description: Access denied
+
+  /api/delete_product:
+    post:
+      summary: Delete product
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductDeletionParams"
+      responses:
+        "200":
+          description: Updated product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /api/buy_products:
+    post:
+      summary: Buy products
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Cart"
+      responses:
+        "200":
+          description: Purchase successful
+        "402":
+          description: Not enough funds
+        "404":
+          description: Product not available
+
+  /api/auth/google:
+    get:
+      summary: Start Google OAuth login
+      responses:
+        "302":
+          description: Redirect to Google OAuth
+
+  /api/auth/google/callback:
+    get:
+      summary: Google OAuth callback
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Login successful, session cookie set
+
+  /api/debug/add_money:
+    post:
+      summary: Add money to user balance (debug)
+      description: |
+        ⚠ Debug endpoint. Should be disabled in production.
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoneyParams"
+      responses:
+        "200":
+          description: Balance updated
+

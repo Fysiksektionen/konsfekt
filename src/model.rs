@@ -47,17 +47,15 @@ impl Product {
         })
     }
 
-    pub fn update(&mut self, params: ProductParams) -> Result<(), ()> {
+    pub fn update(&mut self, params: ProductParams) {
         if let Some(name) = params.name { self.name = name };
         if let Some(price) = params.price { self.price = price };
         if let Some(description) = params.description { self.description = description };
-        if let Some(stock) = params.stock { self.stock = Some(stock) };
+        self.stock = params.stock;
 
         if let Some(flags) = params.flags {
             self.flags = flags;
         };
-
-        Ok(())
     }
 
     pub fn into_row(self) -> ProductRow {
@@ -94,4 +92,10 @@ impl ProductFlags {
     pub fn to_string(&self) -> String {
         serde_json::to_string(self).unwrap()
     }
+}
+
+pub struct Transaction {
+    pub user: u32,
+    pub total_price: f32,
+    pub products: Vec<(ProductRow, u32)>
 }

@@ -4,12 +4,33 @@
   import type { PageProps } from './$types';
   import SadIcon from "@lucide/svelte/icons/frown";
     import CartProductDisplay from './CartProductDisplay.svelte';
+    import { backendPOST } from '$lib/utils';
+    import { toast } from 'svelte-sonner';
+    import { goto, invalidateAll } from '$app/navigation';
 	let { data }: PageProps = $props();
   type Product = { id: string }
   let productsInCart = $derived(data.products.filter((p: Product) => (p.id in cart.products) && cart.products[p.id] > 0))
   let total = $derived(productsInCart.reduce((sum: number, p: Product) => sum + p.price * cart.products[p.id], 0))
-</script>
 
+  async function buyProducts() {
+    let cartArray = [];
+    for (const [id, quantity] of Object.entries(cart.products)) {
+      if (quantity > 0) {
+        cartArray.push({ id: Number(id), quantity })
+      }
+    }
+    let response = await backendPOST("/buy_products", { products: cartArray }, true);
+    if (response.ok) {
+      const spent = total;
+      await goto("/");
+      invalidateAll();
+      cart.products = {};
+      toast.success(`Ditt köp har på ${spent}kr har genomförts`)
+    }
+  }
+
+  let hasEnoughMoney = $derived(data.user.balance > total);
+</script>
 {#snippet productSum()}
   {#each productsInCart as product, i}
     <div class="flex">
@@ -41,10 +62,16 @@
         </div>
       </div>
       <div class="flex flex-col gap-3 justify-center items-center">
-        <Button class="md:scale-200 scale-150">
-          <p class="text-card-foreground">Betala</p>
-          <span class="font-mono font-semibold">{total}kr</span> 
-        </Button>
+        {#if hasEnoughMoney}
+          <Button onclick={() => buyProducts()} class="md:scale-200 scale-150">
+            <p class="text-card-foreground">Betala</p>
+            <span class="font-mono font-semibold">{total}kr</span> 
+          </Button>
+        {:else}
+          <Button disabled class="md:scale-200 scale-150">
+            Otillräckligt saldo ({data.user.balance}kr)
+          </Button>
+        {/if}
         <div class="flex gap-1 flex-wrap md:hidden">
             ( {@render productSum()} )
         </div>

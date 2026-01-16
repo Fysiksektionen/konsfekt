@@ -9,6 +9,8 @@
     import { zod4 } from 'sveltekit-superforms/adapters';
     import { productFormSchema } from './product-schema';
     import { onMount } from 'svelte';
+  import WarningCircleIcon from "@lucide/svelte/icons/circle-alert"
+  import NotInStockIcon from "@lucide/svelte/icons/archive-x"
 
 	let { data }: { data: PageData } = $props();
   let searchTerm = $state("");
@@ -83,23 +85,30 @@
 
 <div class="grid grid-cols-4 gap-3 mt-3">
   {#each searchStore.filtered as product}
-     <button onclick={() => openUpdateProductSheet(product)} class="flex flex-col p-2 bg-card rounded-md border">
-         <p class="truncate text-left font-bold">{product.name}</p> 
-         <div class="flex justify-between">
-           <div class="overflow-hidden rounded-xl">
-           {#key recentlyChangedProduct}
-             <img
-              src={getImageURL(product.id)}
-              alt={product.description}
-              class="aspect-square h-[80px] object-cover"
-             />
-           {/key}
-           </div>
-           <div class="flex flex-col justify-end">
-             <p class="">{product.price}kr</p>
-           </div>
-         </div>
-     </button>
+    <button onclick={() => openUpdateProductSheet(product)} class="flex flex-col p-2 bg-card rounded-md border">
+      <div class="flex justify-between">
+        <p class="truncate text-left font-bold">{product.name}</p> 
+        {#if product.stock == null || product.stock == undefined}
+          <NotInStockIcon/>
+        {:else if product.stock <= 0}
+          <WarningCircleIcon/>
+        {/if}
+      </div>
+      <div class="flex justify-between">
+        <div class="overflow-hidden rounded-xl">
+        {#key recentlyChangedProduct}
+          <img
+           src={getImageURL(product.id)}
+           alt={product.description}
+           class="aspect-square h-[80px] object-cover"
+          />
+        {/key}
+        </div>
+        <div class="flex flex-col justify-end">
+          <p class="">{product.price}kr</p>
+        </div>
+      </div>
+    </button>
   {/each}
 </div>
 

@@ -5,9 +5,9 @@ import { zod4 } from "sveltekit-superforms/adapters";
 import { getProducts } from '$lib/utils';
 
 export const load: PageLoad = async ({ fetch }) => {
-    let products = getProducts(fetch);
+    let products = await getProducts(fetch);
     return {
-        products,
+        ...products,
         form: await superValidate(zod4(productFormSchema)),
     }
 };

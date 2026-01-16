@@ -3,6 +3,7 @@ import { clsx, type ClassValue } from "clsx";
 import { onMount } from "svelte";
 import { writable } from "svelte/store";
 import { twMerge } from "tailwind-merge";
+import { cart, type Cart } from "./storage.svelte";
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -46,8 +47,17 @@ export async function getProducts(fetch: svelteFetch) {
         return { products: [] }
     }
     let response = await fetch('/api/get_products');
+    let products = await response.json();
+    
+    // Filter cart so removed products dont appear
+    let filtered_cart_products: Record<string, number> = {}; 
+    for (const p of products) {
+        filtered_cart_products[p.id] = cart.products[p.id];
+    }
+    cart.products = filtered_cart_products;
+
     return {
-        products: await response.json()
+        products
     } 
 }
 

@@ -1,1 +1,2 @@
-export const cart: { products: Record<string, number> } = $state({ products: {} });
+export type Cart = { products: Record<string, number> };
+export const cart: Cart = $state({ products: {} });

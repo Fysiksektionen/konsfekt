@@ -10,7 +10,7 @@ pub struct User {
     pub role: Role,
 }
 
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct ProductRow {
     pub id: u32,
     pub name: String,
@@ -22,9 +22,9 @@ pub struct ProductRow {
 
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
-pub struct Transaction {
+pub struct TransactionRow {
     pub id: u32,
-    pub product: u32,
     pub user: u32,
-    pub amount: f32,
+    pub total_price: f32,
+    pub datetime: i64
 }

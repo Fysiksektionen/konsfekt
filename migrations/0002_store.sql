@@ -9,10 +9,18 @@ CREATE TABLE Product (
 
 CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product INTEGER NOT NULL,
     user INTEGER NOT NULL,
-    amount REAL NOT NULL,
+    total_price REAL NOT NULL,
     datetime INTEGER NOT NULL,
-    FOREIGN KEY("product") REFERENCES Product("id") ON DELETE SET NULL,
     FOREIGN KEY("user") REFERENCES User("id") ON DELETE SET NULL
 );
+
+CREATE TABLE TransactionItem (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_id INTEGER NOT NULL,
+    product INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    price REAL NOT NULL,
+    FOREIGN KEY("transaction_id") REFERENCES StoreTransaction("id") ON DELETE CASCADE,
+    FOREIGN KEY("product") REFERENCES Product("id") ON DELETE SET NULL
+)

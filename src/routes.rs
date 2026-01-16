@@ -4,7 +4,7 @@ use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartF
 use sqlx::SqlitePool;
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{Product, ProductParams}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{Product, ProductParams, Transaction}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -86,19 +86,6 @@ pub async fn permission_middleware(
         true => next.call(req).await,
         false => Err(actix_web::error::ErrorUnauthorized("Access Denied")),
     }
-}
-
-pub async fn debug_middleware(
-    state: Data<AppState>,
-    req: ServiceRequest,
-    next: middleware::Next<BoxBody>
-) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
-    let path = req.path();
-
-    if path.starts_with("/api/debug") && !state.env.is_debug {
-        return Err(actix_web::error::ErrorUnauthorized("Debug mode is not activated"))
-    }
-    next.call(req).await
 }
 
 //
@@ -183,9 +170,8 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
     let params = form.product.into_inner();
 
     product_assert_permission(&product, &user)?;
-
-    product.update(params)
-        .map_err(|_| AppError::BadRequest("Invalid formatting for \"flags\"".to_string()))?;
+    
+    product.update(params);
     
     database::crud::update_product_data(&state.db, product.clone().into_row()).await?;
 
@@ -198,18 +184,6 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
     let products = database::crud::get_products(&state.db).await?;
 
     Ok(HttpResponse::Ok().json(products))
-}
-
-#[post("/api/update_stock")]
-pub async fn update_stock(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductParams>) -> Result<impl Responder, AppError> {
-    let user = user_from_cookie(&state.db, &req).await?;
-    let product = get_product_from_id(&state.db, params.id).await?;
-    let params = params.into_inner();
-
-    product_assert_permission(&product, &user)?;
-    database::crud::update_product_stock(&state.db, product.id, params.stock).await?;
-
-    Ok(HttpResponse::Ok())
 }
 
 #[derive(serde::Deserialize)]
@@ -235,32 +209,49 @@ pub async fn get_products(state: Data<AppState>) -> Result<impl Responder, AppEr
     Ok(HttpResponse::Ok().json(products))
 }
 
+#[derive(serde::Deserialize)]
+struct Cart { 
+    products: Vec<ProductInCart>
+}
 
-#[post("/api/buy_product/{product_id}")]
-pub async fn buy_product(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> Result<impl Responder, AppError> {
+#[derive(serde::Deserialize)]
+struct ProductInCart {
+    id: u32,
+    quantity: u32,
+}
+
+#[post("/api/buy_products")]
+pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Json<Cart>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    let product_id = path.into_inner();
+    let mut products = Vec::new();
+    for p in &cart.products {
+        let product = database::crud::get_product(&state.db, p.id).await?;
+        // Products can be out of stock in database but exist in godisskåp
+        if product.stock.is_none() {
+            return Err(AppError::ActixError(actix_web::error::ErrorNotFound("Product not available")))
+        }
+        products.push((product, p.quantity));
+    }
+    let total_price = products.iter().fold(0.0, |tot, (p, quantity)| tot + p.price * (*quantity as f32));
 
-    let product_row = database::crud::get_product(&state.db, product_id).await?;
-    if product_row.stock.is_none_or(|v| v <= 0) {
-        return Err(AppError::GenericError("Product not in stock".to_string()))
+    if total_price > user.balance {
+        return Err(AppError::ActixError(actix_web::error::ErrorPaymentRequired("Not enough funds")));
     }
-    
-    if user.balance < product_row.price {
-        return Err(AppError::GenericError("Not enough funds".to_string()))
-    }
-    
-    database::crud::create_transaction(&state.db, database::model::Transaction {
+
+    let transaction = Transaction {
         user: user.id,
-        product: product_row.id,
-        id: 0,
-        amount: product_row.price,
-    }).await?;
-    database::crud::update_user_balance(&state.db, user.id, user.balance - product_row.price).await?;
+        products: products.clone(),
+        total_price
+    };
+     
+    database::crud::create_transaction(&state.db, transaction).await?;
 
-    let stock = product_row.stock.unwrap() - 1;
-    database::crud::update_product_stock(&state.db, product_row.id, Some(stock)).await?;
+    database::crud::update_user_balance(&state.db, user.id, user.balance - total_price).await?;
     
+    for (product, quantity) in products {
+        let new_stock = Some(product.stock.unwrap() - quantity as i32);
+        database::crud::update_product_stock(&state.db, product.id, new_stock).await?;
+    }
 
     Ok(HttpResponse::Ok())
 }

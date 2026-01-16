@@ -1,5 +1,7 @@
 <script lang="ts">
  import * as Form from "$lib/components/ui/form/index.js";
+ import WarningCircleIcon from "@lucide/svelte/icons/circle-alert"
+ import OutOfStockIcon from "@lucide/svelte/icons/archive-x"
  import UploadIcon from "@lucide/svelte/icons/upload"
  import { Input } from "$lib/components/ui/input/index.js";
     import Textarea from "$lib/components/ui/textarea/textarea.svelte";
@@ -75,7 +77,7 @@
 </script>
  
 <form method="POST" enctype="multipart/form-data" use:enhance class="flex flex-col justify-between h-full">
-  <div class="flex flex-col justify-between">
+  <div class="flex flex-col gap-2 justify-between">
     <Form.Field {form} name="name">
      <Form.Control>
       {#snippet children({ props })}
@@ -183,8 +185,16 @@
         </Form.Field>
       </div>
     </div>
+    {#if !isCreateForm}
+      <div class="flex gap-2">
+        {#if $formData.stock == null || $formData.stock == undefined}
+          <OutOfStockIcon class="text-yellow-300"/> <p>Produkten finns inte med i sortimentet</p>
+        {:else if $formData.stock <= 0}
+          <WarningCircleIcon class="text-yellow-300"/> <p>Produkt har negativ lagerstatus</p>
+        {/if}
+      </div>
+    {/if}
   </div>
-  <div>
   <div class="flex w-full md:justify-between md:flex-row gap-3 flex-col-reverse">
     <Form.Button>
       {#if isCreateForm}
@@ -209,6 +219,5 @@
       </Button>
     {/if}
     </div>
-  </div>
   </div>
 </form>

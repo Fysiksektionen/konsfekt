@@ -1,7 +1,7 @@
 use sqlx::{Result, SqlitePool};
 use time::UtcDateTime;
 
-use crate::database::model::Transaction;
+use crate::model::Transaction;
 use crate::{AppError, Role};
 
 use super::model::User;
@@ -128,12 +128,14 @@ pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Resu
             name = ?, 
             price = ?, 
             description = ?,
+            stock = ?,
             flags = ?
         WHERE id = ?
         "#)
         .bind(product.name)
         .bind(product.price)
         .bind(product.description)
+        .bind(product.stock)
         .bind(product.flags)
         .bind(product.id)
     .execute(pool)
@@ -168,20 +170,27 @@ pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), AppError> 
     Ok(())
 }
 
-pub async fn create_transaction(pool: &SqlitePool, mut transaction: Transaction) -> Result<Transaction, AppError> {
+pub async fn create_transaction(pool: &SqlitePool, transaction: Transaction) -> Result<(), AppError> {
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO StoreTransaction (product, user, amount, datetime)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO StoreTransaction (user, total_price, datetime)
+        VALUES (?, ?, ?)
         RETURNING id
         "#
-    ).bind(transaction.product)
-    .bind(transaction.user)
-    .bind(transaction.amount)
+    ).bind(transaction.user)
+    .bind(transaction.total_price)
     .bind(UtcDateTime::now().unix_timestamp())
     .fetch_one(pool).await?;
-    
-    transaction.id = id;
-
-    Ok(transaction)
+    for (product, quantity) in transaction.products {
+        sqlx::query(
+            r#"
+            INSERT INTO TransactionItem (transaction_id, product, quantity, price)
+            VALUES (?, ?, ?, ?)
+            "#
+        ).bind(id)
+        .bind(product.id)
+        .bind(quantity)
+        .bind(product.price).execute(pool).await?;
+    } 
+    Ok(())
 }
