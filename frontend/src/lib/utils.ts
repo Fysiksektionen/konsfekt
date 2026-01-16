@@ -4,6 +4,7 @@ import { onMount } from "svelte";
 import { writable } from "svelte/store";
 import { twMerge } from "tailwind-merge";
 import { cart, type Cart } from "./storage.svelte";
+import { on } from "svelte/events";
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -51,14 +52,16 @@ export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     
     // Filter cart so removed products dont appear
     let filtered_products = [];
-    let filtered_cart_products: Record<string, number> = {}; 
+    let filtered_cart: Record<string, number> = {}; 
     for (const p of products) {
         if (!(onlyAvailable && p.stock == null)) {
             filtered_products.push(p);
-            filtered_cart_products[p.id] = cart.products[p.id];
+            if (cart.products[p.id]) {
+                filtered_cart[p.id] = cart.products[p.id];
+            }
         }
     }
-    cart.products = filtered_cart_products;
+    cart.products = filtered_cart;
 
     return {
         products: filtered_products
