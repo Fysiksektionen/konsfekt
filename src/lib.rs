@@ -33,7 +33,8 @@ pub struct EnvironmentVariables {
 impl EnvironmentVariables {
     pub fn new() -> Self {
         let _ = dotenv::dotenv();
-        let mut static_frontend = env::var("STATIC_FRONTEND").unwrap_or("true".into()).parse::<bool>().unwrap_or(false);
+        let mut static_frontend = env::var("STATIC_FRONTEND").unwrap_or("true".into())
+            .parse::<bool>().unwrap_or(false);
         let is_debug = cfg!(debug_assertions);
         if !is_debug {
             // --release mode uses prebuilt frontend
