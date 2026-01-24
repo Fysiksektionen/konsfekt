@@ -1,7 +1,6 @@
-use time::{Date, OffsetDateTime, UtcDateTime};
+use time::{OffsetDateTime};
 
-use crate::{AppError, database::{crud, model::{ProductRow, TransactionItemRow, TransactionRow}}};
-
+use crate::{database::{model::{ProductRow, TransactionItemRow, TransactionRow}}};
 
 #[derive(serde::Deserialize)]
 pub struct ProductParams {
@@ -129,8 +128,17 @@ pub struct Transaction {
     pub amount: f32,
     #[serde(with = "time::serde::iso8601")]
     pub datetime: OffsetDateTime,
-    pub search_term: String,
-    pub items: Vec<TransactionItem>
+    search_term: String,
+    items: Vec<TransactionItem>
+}
+
+impl Transaction {
+    pub fn add_items(&mut self, items: Vec<TransactionItemRow>) {
+        for i in items {
+            self.search_term.push_str(&format!("{} {} ", i.name, i.product));
+            self.items.push(TransactionItem::from(i));
+        }
+    }
 }
 
 impl From<TransactionRow> for Transaction {

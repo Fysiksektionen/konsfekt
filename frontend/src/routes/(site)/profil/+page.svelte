@@ -1,13 +1,16 @@
-<script lang="ts">
+<script lang="ts" generics="TData, TValue">
   import Button from '$lib/components/ui/button/button.svelte';
   import { Input } from '$lib/components/ui/input';
 	import type { PageProps } from './$types';
   import * as Item from "$lib/components/ui/item/index.js";
   import DataTable from '$lib/components/transactions/data-table.svelte';
-  import type { Transaction } from '$lib/components/transactions/columns';
-  import { columns } from '$lib/components/transactions/columns';
+  import { columns, type Transaction } from '$lib/components/transactions/columns';
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
-  import Switch from '$lib/components/ui/switch/switch.svelte';
+    import { Separator } from "$lib/components/ui/separator/index.js";
+    import * as Dialog from "$lib/components/ui/dialog/index.js";
+    import { getDateString } from "$lib/utils";
+    import { Switch } from '$lib/components/ui/switch';
+    import { Badge } from '$lib/components/ui/badge';
 
 	let { data }: PageProps = $props();
 
@@ -16,6 +19,15 @@
   let transactions = $state(data.transactions)
 
   const isAdmin = ["admin", "maintainer"].includes(data.user.role);
+
+ let currentTransaction: Transaction = $state({ amount: 0, id: 0, search_term: "", datetime: "", items: [] });
+ let transactionViewOpen = $state(false);
+ let showProductIds = $state(false);
+
+ function onTransactionClicked(transaction: Transaction) {
+   currentTransaction = transaction;
+   transactionViewOpen = true;
+ }
 </script>
 
 <div class="w-full md:pl-10 md:pr-10 lg:pl-30 lg:pr-30 gap-3 flex flex-col items-start">
@@ -89,6 +101,36 @@
       </Item.Actions>
     </Item.Root>
 
-    <DataTable data={transactions} {columns} balance={data.user.balance}/>
+    <DataTable data={transactions} onclick={onTransactionClicked} {columns} balance={data.user.balance}/>
   </div>
 </div>
+
+<Dialog.Root bind:open={transactionViewOpen}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>{currentTransaction?.amount > 0 ? "Insättning" : "Köp" }</Dialog.Title>
+      <Dialog.Description>
+        {getDateString(currentTransaction?.datetime)}
+        <Separator/>
+        {#if currentTransaction?.amount <= 0}
+          <div class="flex flex-col mt-1">
+            <div class="flex gap-2">
+              <Switch bind:checked={showProductIds} id="show-product-ids" />
+              <p>Visa produkt-ID</p>
+            </div>
+            {#each currentTransaction?.items as item}
+              <div class="flex gap-2">
+                <p>{item.quantity}x {item.name} ({item.quantity * item.price}kr)</p>
+                {#if showProductIds}
+                  <Badge variant="outline">ID{item.product_id}</Badge>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+        <span class="text-2xl font-mono font-semibold">{currentTransaction?.amount}kr</span> 
+      </Dialog.Description>
+    </Dialog.Header>
+  </Dialog.Content>
+</Dialog.Root>
+ 

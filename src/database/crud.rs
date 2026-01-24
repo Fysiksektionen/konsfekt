@@ -218,12 +218,12 @@ pub async fn get_transactions(pool: &SqlitePool, user_id: Option<u32>) -> Result
     let mut transactions = Vec::new();
     for row in transaction_rows {
         let mut transaction = Transaction::from(row);
-        let mut items: Vec<TransactionItemRow> = sqlx::query_as(r#"
+        let items: Vec<TransactionItemRow> = sqlx::query_as(r#"
             SELECT id, transaction_id, product, quantity, name, price
             FROM TransactionItem
             WHERE transaction_id = ?
             "#).bind(transaction.id).fetch_all(pool).await?;
-        transaction.items.append(&mut items.drain(..).map(|r| TransactionItem::from(r)).collect());
+        transaction.add_items(items);
         transactions.push(transaction);
     }
     Ok(transactions)

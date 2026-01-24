@@ -10,6 +10,7 @@ export type TransactionItem = {
     name: string;
     price: number;
     quantity: number;
+    product_id: number;
 }
 
 export type Transaction = {
@@ -17,7 +18,7 @@ export type Transaction = {
  amount: number;
  datetime: string;
  search_term: string;
- items?: TransactionItem[];
+ items: TransactionItem[];
 }
 
 export const columns: ColumnDef<Transaction>[] = [
@@ -37,14 +38,14 @@ export const columns: ColumnDef<Transaction>[] = [
           let textColor;
           if (amount > 0) {
               formatted = "+" + formatted
-              textColor = "text-secondary";
+              textColor = "text-blue-500";
           } else {
               formatted = formatted
-              textColor = "text-primary";
+              textColor = "text-red-500";
           }
           return {
             render: () =>
-              `<div class="text-right ${textColor} text-shadow-2xs text-shadow-accent font-medium w-1/2">${formatted}</div>`,
+              `<div class="text-right ${textColor} font-medium w-1/2">${formatted}</div>`,
           };
         }
       );
