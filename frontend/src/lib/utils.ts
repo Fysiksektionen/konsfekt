@@ -37,6 +37,18 @@ export async function getUser(fetch: svelteFetch) {
     return await response.json()
 }
 
+export async function getTransactions(fetch: svelteFetch, userId?: number) {
+    if (import.meta.env.SSR) {
+        return [];
+    }
+    let endpoint = "/api/get_transactions";
+    if (userId != null) {
+       endpoint += `?user_id=${userId}`;
+    }
+    let transactionResponse = await fetch(endpoint);
+    return await transactionResponse.json();
+}
+
 export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     if (import.meta.env.SSR) {
         return { products: [] }

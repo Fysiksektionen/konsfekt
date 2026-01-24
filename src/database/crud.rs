@@ -2,7 +2,7 @@ use sqlx::{Result, SqlitePool};
 use time::UtcDateTime;
 
 use crate::database::model::{TransactionItemRow, TransactionRow};
-use crate::model::{PendingTransaction, Transaction, TransactionItem};
+use crate::model::{PendingTransaction, Transaction};
 use crate::{AppError, Role};
 
 use super::model::User;
