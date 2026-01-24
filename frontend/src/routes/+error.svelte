@@ -3,5 +3,4 @@
 </script>
 
 <h1>{page.error?.message}</h1>
-
 <p>TODO, better error page</p>

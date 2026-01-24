@@ -1,10 +1,8 @@
 import { error, redirect } from "@sveltejs/kit";
 import { clsx, type ClassValue } from "clsx";
-import { onMount } from "svelte";
-import { writable } from "svelte/store";
 import { twMerge } from "tailwind-merge";
-import { cart, type Cart } from "./storage.svelte";
-import { on } from "svelte/events";
+import { cart } from "./storage.svelte";
+import { parseAbsoluteToLocal } from "@internationalized/date";
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -22,11 +20,9 @@ type svelteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Res
 export async function getUser(fetch: svelteFetch) {
     if (import.meta.env.SSR) {
         return {
-            user: {
-                id: -1,
-                email: "",
-                balance: 0
-            }
+            id: 0,
+            email: "",
+            balance: 0
         }
     }
     const response = await fetch("/api/get_user");
@@ -38,9 +34,7 @@ export async function getUser(fetch: svelteFetch) {
     if (!response.ok) {
         throw error(response.status)
     }
-    return {
-        user: await response.json()
-    }
+    return await response.json()
 }
 
 export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
@@ -66,6 +60,10 @@ export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     return {
         products: filtered_products
     } 
+}
+
+export function getDateString(dbDateString: string) {
+  return parseAbsoluteToLocal(dbDateString).toDate().toLocaleDateString("sv-SE");
 }
 
 type SearchStore<T extends object> = {

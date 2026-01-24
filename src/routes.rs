@@ -4,7 +4,7 @@ use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartF
 use sqlx::SqlitePool;
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{Product, ProductParams, Transaction}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{PendingTransaction, Product, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -94,6 +94,7 @@ pub async fn permission_middleware(
 
 #[derive(Serialize)]
 struct UserResponse {
+    id: u32,
     name: Option<String>,
     email: String,
     balance: f32,
@@ -105,6 +106,7 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
     let user = auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await?;
     
     let user_response = UserResponse {
+        id: user.id,
         name: user.name,
         email: user.email,
         balance: user.balance,
@@ -113,6 +115,23 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
     Ok(web::Json(user_response))
 }
 
+#[derive(Deserialize)]
+struct GetTransactionQuery {
+    user_id: Option<u32>,
+}
+
+
+#[get("/api/get_transactions")]
+pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Query<GetTransactionQuery>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    if user.role == Role::User &&
+        (query.user_id.is_some_and(|id| id != user.id) || query.user_id.is_none()) {
+        return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Cannot get other user's transactions")));
+    }
+    let transactions = crud::get_transactions(&state.db, query.user_id).await?;
+
+    Ok(HttpResponse::Ok().json(transactions))
+}
 
 fn product_assert_permission(product: &Product, user: &User) -> Result<(), AppError> {
     // Check if product may be modified
@@ -258,10 +277,10 @@ pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Js
         return Err(AppError::ActixError(actix_web::error::ErrorPaymentRequired("Not enough funds")));
     }
 
-    let transaction = Transaction {
+    let transaction = PendingTransaction {
         user: user.id,
         products: products.clone(),
-        total_price
+        amount: -total_price
     };
      
     database::crud::create_transaction(&state.db, transaction).await?;

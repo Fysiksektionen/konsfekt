@@ -29,7 +29,7 @@
     }
   }
 
-  let hasEnoughMoney = $derived(data.user.balance > total);
+  let hasEnoughMoney = $derived(data.user.balance >= total);
 </script>
 {#snippet productSum()}
   {#each productsInCart as product, i}

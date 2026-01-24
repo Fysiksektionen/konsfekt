@@ -1,7 +1,8 @@
 use sqlx::{Result, SqlitePool};
 use time::UtcDateTime;
 
-use crate::model::Transaction;
+use crate::database::model::{TransactionItemRow, TransactionRow};
+use crate::model::{PendingTransaction, Transaction, TransactionItem};
 use crate::{AppError, Role};
 
 use super::model::User;
@@ -170,27 +171,60 @@ pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), AppError> 
     Ok(())
 }
 
-pub async fn create_transaction(pool: &SqlitePool, transaction: Transaction) -> Result<(), AppError> {
+pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransaction) -> Result<(), AppError> {
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO StoreTransaction (user, total_price, datetime)
+        INSERT INTO StoreTransaction (user, amount, datetime)
         VALUES (?, ?, ?)
         RETURNING id
         "#
     ).bind(transaction.user)
-    .bind(transaction.total_price)
+    .bind(transaction.amount)
     .bind(UtcDateTime::now().unix_timestamp())
     .fetch_one(pool).await?;
     for (product, quantity) in transaction.products {
         sqlx::query(
             r#"
-            INSERT INTO TransactionItem (transaction_id, product, quantity, price)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO TransactionItem (transaction_id, product, quantity, name, price)
+            VALUES (?, ?, ?, ?, ?)
             "#
         ).bind(id)
         .bind(product.id)
         .bind(quantity)
+        .bind(product.name)
         .bind(product.price).execute(pool).await?;
     } 
     Ok(())
+}
+
+pub async fn get_transactions(pool: &SqlitePool, user_id: Option<u32>) -> Result<Vec<Transaction>, AppError> {
+    let sql = format!("
+        SELECT id, user, amount, datetime
+        FROM StoreTransaction
+        {}
+        ",
+        match user_id {
+            Some(_) => "WHERE user = ?",
+            None => ""
+        });
+    let mut query = sqlx::query_as(&sql);
+
+    if let Some(id) = user_id {
+        query = query.bind(id);
+    }
+
+    let transaction_rows: Vec<TransactionRow> = query.fetch_all(pool).await?;
+
+    let mut transactions = Vec::new();
+    for row in transaction_rows {
+        let mut transaction = Transaction::from(row);
+        let mut items: Vec<TransactionItemRow> = sqlx::query_as(r#"
+            SELECT id, transaction_id, product, quantity, name, price
+            FROM TransactionItem
+            WHERE transaction_id = ?
+            "#).bind(transaction.id).fetch_all(pool).await?;
+        transaction.items.append(&mut items.drain(..).map(|r| TransactionItem::from(r)).collect());
+        transactions.push(transaction);
+    }
+    Ok(transactions)
 }

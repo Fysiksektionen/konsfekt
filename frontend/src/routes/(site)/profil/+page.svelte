@@ -13,20 +13,7 @@
 
   let username = $state(data.user.name);
   
-  export const transactions: Transaction[] = [
-   {
-    id: "728ed52f",
-    amount: 100,
-    type: "deposit",
-    description: "Swish instättning",
-   },
-   {
-    id: "489e1d42",
-    amount: 18,
-    type: "payment",
-    description: "Billys Orginal",
-   },
-  ];
+  let transactions = $state(data.transactions)
 
   const isAdmin = ["admin", "maintainer"].includes(data.user.role);
 </script>

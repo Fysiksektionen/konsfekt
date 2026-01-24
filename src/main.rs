@@ -6,6 +6,8 @@ use actix_web::{middleware, web::Data, App, HttpServer};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init();
+
     let env = EnvironmentVariables::new();
 
     let pool = database::init_database()
@@ -42,6 +44,7 @@ async fn main() -> std::io::Result<()> {
 
             // User API
             .service(routes::get_user)
+            .service(routes::get_transactions)
 
             // Product API
             .service(routes::create_product)

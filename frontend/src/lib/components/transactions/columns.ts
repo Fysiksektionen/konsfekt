@@ -1,36 +1,45 @@
 import type { ColumnDef } from "@tanstack/table-core";
 import { renderSnippet } from "../ui/data-table";
 import { createRawSnippet } from "svelte";
+import { getDateString } from "$lib/utils";
  
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
+//
+export type TransactionItem = {
+    name: string;
+    price: number;
+    quantity: number;
+}
+
 export type Transaction = {
- id: string;
+ id: number;
  amount: number;
- type: "deposit" | "payment";
- description: string;
-};
- 
+ datetime: string;
+ search_term: string;
+ items?: TransactionItem[];
+}
+
 export const columns: ColumnDef<Transaction>[] = [
  {
   accessorKey: "amount",
-  header: "Summa",
+  header: "Belopp",
   cell: ({ row }) => {
       const formatter = new Intl.NumberFormat("sv-SE", {
         style: "currency",
         currency: "SEK",
       });
  
-      const amountCellSnippet = createRawSnippet<[{ amount: number; type: "deposit" | "payment" }]>(
+      const totalCellSnippet = createRawSnippet<[{ amount: number; }]>(
         (getAmount) => {
-          const { amount, type } = getAmount();
+          const { amount } = getAmount();
           let formatted = formatter.format(amount);
           let textColor;
-          if (type==="deposit") {
+          if (amount > 0) {
               formatted = "+" + formatted
               textColor = "text-secondary";
           } else {
-              formatted = "-" + formatted
+              formatted = formatted
               textColor = "text-primary";
           }
           return {
@@ -40,9 +49,8 @@ export const columns: ColumnDef<Transaction>[] = [
         }
       );
  
-      return renderSnippet(amountCellSnippet, {
+      return renderSnippet(totalCellSnippet, {
         amount: row.original.amount,
-        type: row.original.type
       });
     },
  },
@@ -50,23 +58,41 @@ export const columns: ColumnDef<Transaction>[] = [
   accessorKey: "type",
   header: "Transaktionstyp",
   cell: ({ row }) => {
-      const typeCellSnippet = createRawSnippet<[{ type: "deposit" | "payment" }]>(
+      const typeCellSnippet = createRawSnippet<[{ amount: number }]>(
         (getAmount) => {
-          const { type } = getAmount();
+          const { amount } = getAmount();
           return {
             render: () =>
-              `${type == "deposit" ? "Insättning" : "Köp"}`,
+              `${amount > 0 ? "Insättning" : "Köp"}`,
           };
         }
       );
  
       return renderSnippet(typeCellSnippet, {
-        type: row.original.type,
+        amount: row.original.amount,
       });
     },
  },
  {
-  accessorKey: "description",
-  header: "Beskrivning",
+  accessorKey: "date",
+  header: "Datum",
+  cell: ({ row }) => {
+      const typeCellSnippet = createRawSnippet<[{ datetime: string }]>(
+        (getDatetime) => {
+          const { datetime } = getDatetime();
+          return {
+            render: () =>
+                getDateString(datetime)
+          };
+        }
+      );
+ 
+      return renderSnippet(typeCellSnippet, {
+        datetime: row.original.datetime,
+      });
+  }
+ },
+ {
+  accessorKey: "search_term",
  },
 ];

@@ -1,4 +1,6 @@
-use crate::database::model::ProductRow;
+use time::{Date, OffsetDateTime, UtcDateTime};
+
+use crate::{AppError, database::{crud, model::{ProductRow, TransactionItemRow, TransactionRow}}};
 
 
 #[derive(serde::Deserialize)]
@@ -96,8 +98,49 @@ impl ProductFlags {
     }
 }
 
-pub struct Transaction {
+pub struct PendingTransaction {
     pub user: u32,
-    pub total_price: f32,
+    pub amount: f32,
     pub products: Vec<(ProductRow, u32)>
+}
+
+#[derive(serde::Serialize)]
+pub struct TransactionItem {
+    pub product_id: u32,
+    pub name: String,
+    pub price: f32,
+    pub quantity: u32
+}
+
+impl From<TransactionItemRow> for TransactionItem {
+    fn from(row: TransactionItemRow) -> Self {
+        TransactionItem {
+            product_id: row.product,
+            name: row.name,
+            price: row.price,
+            quantity: row.quantity
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct Transaction {
+    pub id: u32,
+    pub amount: f32,
+    #[serde(with = "time::serde::iso8601")]
+    pub datetime: OffsetDateTime,
+    pub search_term: String,
+    pub items: Vec<TransactionItem>
+}
+
+impl From<TransactionRow> for Transaction {
+    fn from(row: TransactionRow) -> Self {
+        Transaction {
+            id: row.id,
+            amount: row.amount,
+            datetime: OffsetDateTime::from_unix_timestamp(row.datetime).unwrap_or_else(|_| OffsetDateTime::UNIX_EPOCH),
+            search_term: String::new(),
+            items: Vec::new()
+        }
+    }
 }

@@ -25,6 +25,16 @@ pub struct ProductRow {
 pub struct TransactionRow {
     pub id: u32,
     pub user: u32,
-    pub total_price: f32,
+    pub amount: f32,
     pub datetime: i64
+}
+
+#[derive(sqlx::FromRow)]
+pub struct TransactionItemRow {
+    pub id: u32,
+    pub transaction_id: u32,
+    pub product: u32,
+    pub quantity: u32,
+    pub name: String,
+    pub price: f32,
 }

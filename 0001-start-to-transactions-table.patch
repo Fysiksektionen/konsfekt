@@ -1,0 +1,215 @@
+From e4dba2b3c79bc5ee3e1909cf9ef58d8ca5a7ca84 Mon Sep 17 00:00:00 2001
+From: Goby56 <60710855+Goby56@users.noreply.github.com>
+Date: Mon, 19 Jan 2026 12:54:59 +0100
+Subject: [PATCH 1/2] start to transactions table
+
+---
+ .../lib/components/transactions/columns.ts    | 57 +++++++++++++------
+ .../components/transactions/data-table.svelte | 30 ++++++++--
+ .../src/routes/(site)/profil/+page.svelte     | 19 ++++---
+ 3 files changed, 77 insertions(+), 29 deletions(-)
+
+diff --git a/frontend/src/lib/components/transactions/columns.ts b/frontend/src/lib/components/transactions/columns.ts
+index 670e156..c206a38 100644
+--- a/frontend/src/lib/components/transactions/columns.ts
++++ b/frontend/src/lib/components/transactions/columns.ts
+@@ -4,27 +4,47 @@ import { createRawSnippet } from "svelte";
+  
+ // This type is used to define the shape of our data.
+ // You can use a Zod schema here if you want.
+-export type Transaction = {
+- id: string;
+- amount: number;
++//
++export type TransactionItem = {
++    name: string;
++    price: number;
++    quantity: number;
++}
++
++export type BaseTransaction = {
++ id: number;
++ total: number;
+  type: "deposit" | "payment";
+- description: string;
+-};
++ date: string;
++ search_term: string;
++}
++
++export type DepositTransaction = BaseTransaction & {
++    type: "deposit";
++    items?: undefined;
++}
++
++export type PaymentTransaction = BaseTransaction & {
++    type: "payment";
++    items: TransactionItem[];
++}
++
++export type Transaction = DepositTransaction | PaymentTransaction;
+  
+ export const columns: ColumnDef<Transaction>[] = [
+  {
+-  accessorKey: "amount",
+-  header: "Summa",
++  accessorKey: "total",
++  header: "Belopp",
+   cell: ({ row }) => {
+       const formatter = new Intl.NumberFormat("sv-SE", {
+         style: "currency",
+         currency: "SEK",
+       });
+  
+-      const amountCellSnippet = createRawSnippet<[{ amount: number; type: "deposit" | "payment" }]>(
+-        (getAmount) => {
+-          const { amount, type } = getAmount();
+-          let formatted = formatter.format(amount);
++      const totalCellSnippet = createRawSnippet<[{ total: number; type: "deposit" | "payment" }]>(
++        (getTotal) => {
++          const { total, type } = getTotal();
++          let formatted = formatter.format(total);
+           let textColor;
+           if (type==="deposit") {
+               formatted = "+" + formatted
+@@ -40,8 +60,8 @@ export const columns: ColumnDef<Transaction>[] = [
+         }
+       );
+  
+-      return renderSnippet(amountCellSnippet, {
+-        amount: row.original.amount,
++      return renderSnippet(totalCellSnippet, {
++        total: row.original.total,
+         type: row.original.type
+       });
+     },
+@@ -51,8 +71,8 @@ export const columns: ColumnDef<Transaction>[] = [
+   header: "Transaktionstyp",
+   cell: ({ row }) => {
+       const typeCellSnippet = createRawSnippet<[{ type: "deposit" | "payment" }]>(
+-        (getAmount) => {
+-          const { type } = getAmount();
++        (getType) => {
++          const { type } = getType();
+           return {
+             render: () =>
+               `${type == "deposit" ? "Insättning" : "Köp"}`,
+@@ -66,7 +86,10 @@ export const columns: ColumnDef<Transaction>[] = [
+     },
+  },
+  {
+-  accessorKey: "description",
+-  header: "Beskrivning",
++  accessorKey: "date",
++  header: "Datum",
++ },
++ {
++  accessorKey: "search_term",
+  },
+ ];
+diff --git a/frontend/src/lib/components/transactions/data-table.svelte b/frontend/src/lib/components/transactions/data-table.svelte
+index beba3fe..db98ec1 100644
+--- a/frontend/src/lib/components/transactions/data-table.svelte
++++ b/frontend/src/lib/components/transactions/data-table.svelte
+@@ -16,6 +16,9 @@
+     import Button from "../ui/button/button.svelte";
+     import FlexRender from "../ui/data-table/flex-render.svelte";
+ 
++    import * as Dialog from "$lib/components/ui/dialog/index.js";
++    import type { Transaction } from "./columns";
++
+   type DataTableProps<TData, TValue> = {
+    data: TData[];
+    columns: ColumnDef<TData, TValue>[];
+@@ -25,7 +28,7 @@
+  let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
+  let sorting = $state<SortingState>([]);
+  let columnFilters = $state<ColumnFiltersState>([]);
+- let columnVisibility = $state<VisibilityState>({});
++ let columnVisibility = $state<VisibilityState>({search_term: false});
+  
+  const table = createSvelteTable({
+   get data() {
+@@ -79,17 +82,34 @@
+    },
+   },
+  });
++ let currentTransaction: Transaction | undefined = $state();
++ let transactionViewOpen = $state(false);
+ </script>
++
++<Dialog.Root bind:open={transactionViewOpen}>
++  <Dialog.Content>
++    <Dialog.Header>
++      <Dialog.Title>{currentTransaction?.type == "deposit" ? "Swish insättning" : "Köp" } {currentTransaction?.date}</Dialog.Title>
++      <Dialog.Description>
++        {#if currentTransaction?.type == "payment"}
++          {#each currentTransaction?.items as item}
++            {item.name} 
++          {/each}
++        {/if}
++      </Dialog.Description>
++    </Dialog.Header>
++  </Dialog.Content>
++</Dialog.Root>
+  
+ <div class="w-full">
+   <div class="flex md:flex-row flex-col-reverse items-center py-4 gap-3">
+     <Input
+       placeholder="Sök efter transaktion..."
+-      value={(table.getColumn("description")?.getFilterValue() as string) ?? ""}
++      value={(table.getColumn("search_term")?.getFilterValue() as string) ?? ""}
+       oninput={(e) =>
+-        table.getColumn("description")?.setFilterValue(e.currentTarget.value)}
++        table.getColumn("search_term")?.setFilterValue(e.currentTarget.value)}
+       onchange={(e) => {
+-        table.getColumn("description")?.setFilterValue(e.currentTarget.value);
++        table.getColumn("search_term")?.setFilterValue(e.currentTarget.value);
+       }}
+       class="max-w-sm"
+     />
+@@ -117,7 +137,7 @@
+       </Table.Header>
+       <Table.Body>
+         {#each table.getRowModel().rows as row (row.id)}
+-          <Table.Row data-state={row.getIsSelected() && "selected"}>
++          <Table.Row onclick={() => { transactionViewOpen = true; currentTransaction = row.original; } } data-state={row.getIsSelected() && "selected"}>
+             {#each row.getVisibleCells() as cell (cell.id)}
+               <Table.Cell class="[&:has([role=checkbox])]:pl-3">
+                 <FlexRender
+diff --git a/frontend/src/routes/(site)/profil/+page.svelte b/frontend/src/routes/(site)/profil/+page.svelte
+index e88d2fd..35c86c7 100644
+--- a/frontend/src/routes/(site)/profil/+page.svelte
++++ b/frontend/src/routes/(site)/profil/+page.svelte
+@@ -15,16 +15,21 @@
+   
+   export const transactions: Transaction[] = [
+    {
+-    id: "728ed52f",
+-    amount: 100,
++    id: 0,
++    total: 100,
+     type: "deposit",
+-    description: "Swish instättning",
+-   },
++    date: "20/01/2026",
++    search_term: "swish"
++    },
+    {
+-    id: "489e1d42",
+-    amount: 18,
++    id: 1,
++    total: 18,
+     type: "payment",
+-    description: "Billys Orginal",
++    date: "19/01/2026",
++    search_term: "billys",
++    items: [
++     { name: "Billys", price: 18, quantity: 1 }
++    ]
+    },
+   ];
+ 
+-- 
+2.51.2
+
