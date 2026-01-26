@@ -100,8 +100,7 @@
         <Switch/>
       </Item.Actions>
     </Item.Root>
-
-    <DataTable data={transactions} onclick={onTransactionClicked} {columns} balance={data.user.balance}/>
+    <DataTable data={transactions} onclick={onTransactionClicked} {columns}/>
   </div>
 </div>
 

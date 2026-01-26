@@ -16,13 +16,13 @@
     import Button from "../ui/button/button.svelte";
     import FlexRender from "../ui/data-table/flex-render.svelte";
     import type { Transaction } from "./columns";
-
+  
   type DataTableProps<TData, TValue> = {
    data: TData[];
    columns: ColumnDef<TData, TValue>[];
  };
- let { columns, data, balance, onclick }: 
-    DataTableProps<TData, TValue> & {balance: number, onclick: (currTransaction: Transaction) => void} = $props();
+ let { columns, data, onclick }: 
+    DataTableProps<TData, TValue> & {onclick: (currTransaction: Transaction) => void} = $props();
  
  let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
  let sorting = $state<SortingState>([]);
@@ -96,9 +96,6 @@
       }}
       class="max-w-sm"
     />
-    <div class="text-muted-foreground flex-1 text-md">
-      Totalt saldo: {balance}kr
-    </div>
   </div>
   <div class="rounded-md border">
     <Table.Root>

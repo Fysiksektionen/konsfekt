@@ -56,21 +56,22 @@ export const columns: ColumnDef<Transaction>[] = [
     },
  },
  {
-  accessorKey: "type",
-  header: "Transaktionstyp",
+  accessorKey: "description",
+  header: "Beskrivning",
   cell: ({ row }) => {
-      const typeCellSnippet = createRawSnippet<[{ amount: number }]>(
-        (getAmount) => {
-          const { amount } = getAmount();
+      const typeCellSnippet = createRawSnippet<[{ items: TransactionItem[] }]>(
+        (getItems) => {
+          const { items } = getItems();
+          const desc = items.length == 0 ? "Swish insättning" : items.slice(0, 5).map(i => i.name).join(", ");
           return {
             render: () =>
-              `${amount > 0 ? "Insättning" : "Köp"}`,
+              `<div class="truncate">${desc}</div>`,
           };
         }
       );
  
       return renderSnippet(typeCellSnippet, {
-        amount: row.original.amount,
+        items: row.original.items,
       });
     },
  },
