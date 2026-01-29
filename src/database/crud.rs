@@ -1,4 +1,4 @@
-use sqlx::{Result, SqlitePool};
+use sqlx::{Result, SqlitePool, query, query_as, query_scalar};
 use time::UtcDateTime;
 
 use crate::database::model::{TransactionItemRow, TransactionRow};
@@ -78,6 +78,54 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
     Ok(())
 }
 
+pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        INSERT INTO EmailSwitch (user_id, new_email)
+        VALUES (?, ?)
+        "#
+    ).bind(user_id).bind(new_email).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn get_user_from_email_switch(pool: &SqlitePool, new_email: &str) -> Result<u32, AppError> {
+    let user_id: u32 = query_scalar(
+        r#"
+        SELECT user 
+        FROM EmailSwitch 
+        WHERE new_email = ?
+        "#
+    ).bind(new_email).fetch_one(pool).await?;
+
+    Ok(user_id)
+}
+
+pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str, google_id: &str) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        r#"
+        UPDATE User SET 
+            email = ?, 
+            google_id = ?, 
+        WHERE id = ?
+        "#).bind(new_email).bind(google_id).bind(user_id).execute(&mut *tx).await?;
+
+    sqlx::query(
+        r#"
+        DELETE FROM EmailSwitch 
+        WHERE id = ?
+        "#
+    ).bind(user_id).execute(&mut *tx).await?;
+
+    Ok(())
+}
+
+// pub async fn remove_email_switch(pool: &SqlitePool, email: &str) -> Result<(), AppError> {
+//     query()
+// 
+// 
+// }
 //
 //          Shop
 //

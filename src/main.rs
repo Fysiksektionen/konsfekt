@@ -41,6 +41,7 @@ async fn main() -> std::io::Result<()> {
             // Google Auth
             .service(routes::google_login)
             .service(routes::google_callback)
+            .service(routes::logout)
 
             // User API
             .service(routes::get_user)

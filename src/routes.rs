@@ -4,7 +4,7 @@ use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartF
 use sqlx::SqlitePool;
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth, database::{self, crud, model::User}, model::{PendingTransaction, Product, ProductParams}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth::{self, Session}, database::{self, crud, model::User}, model::{PendingTransaction, Product, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -332,7 +332,7 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
 }
 
 #[get("/api/auth/google/callback")]
-pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthRequest>) -> impl Responder {
+pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthRequest>) -> Result<impl Responder, AppError> {
     let resp: GoogleTokenResponse = state.client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
@@ -342,23 +342,31 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
             ("grant_type", "authorization_code"),
             ("redirect_uri", format!("{}/api/auth/google/callback", state.env.site_domain).as_str()),
         ])
-        .send().await.unwrap()
-        .json().await.unwrap();
+        .send().await?
+        .json().await?;
 
     let user_info: GoogleUserInfo = state.client
         .get("https://www.googleapis.com/oauth2/v2/userinfo")
         .bearer_auth(&resp.access_token)
-        .send().await.unwrap()
-        .json().await.unwrap();
+        .send().await?
+        .json().await?;
 
     let mut user = crud::get_user(&state.db, None, Some(&user_info.id)).await;
     if user.is_err() {
-        user = crud::create_user(&state.db, None, &user_info.email, &user_info.id).await;
+        if let Ok(user_id) = crud::get_user_from_email_switch(&state.db, &user_info.email).await {
+            // Used email found in reserved email table
+            // User wants to change email
+            crud::finalize_email_switch(&state.db, user_id, &user_info.email, &user_info.id).await?;
+            
+            user = crud::get_user(&state.db, Some(user_id), None).await;
+        } else {
+            user = crud::create_user(&state.db, None, &user_info.email, &user_info.id).await;
+        }
     };
 
     let session_token = match auth::create_session(&state.db, user?.id).await {
         Ok((_, token)) => token,
-        Err(_) => return Err(actix_web::error::ErrorInternalServerError("Could not create session"))
+        Err(_) => return Err(AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not create session")))
     };
     let cookie = Cookie::build(auth::AUTH_COOKIE, session_token)
         .path("/")
@@ -372,6 +380,30 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .finish()
     )
 }
+
+#[get("/api/auth/logout")]
+pub async fn logout(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
+    let extensions = req.extensions();
+    let session = extensions.get::<Session>().ok_or_else(||
+        AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not find session to remove for logged in user"))
+    )?;
+    auth::invalidate_session(&state.db, session).await?;
+    let mut cookie = req.cookie(auth::AUTH_COOKIE).ok_or_else(||
+        AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not find cookie"))
+    )?;
+
+    cookie.make_removal();
+    
+    Ok(HttpResponse::Found()
+        .append_header(("Location", utils::get_path(&state, "/login")))
+        .cookie(cookie)
+        .finish()
+    )
+}
+
+// #[get("/api/auth/change_email")]
+// pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
+// }
 
 //
 //      Debug

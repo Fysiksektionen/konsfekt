@@ -11,6 +11,7 @@
     import { getDateString } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { Badge } from '$lib/components/ui/badge';
+    import { goto } from '$app/navigation';
 
 	let { data }: PageProps = $props();
 
@@ -27,6 +28,10 @@
  function onTransactionClicked(transaction: Transaction) {
    currentTransaction = transaction;
    transactionViewOpen = true;
+ }
+
+ function logout() {
+   goto("/api/auth/logout");
  }
 </script>
 
@@ -83,7 +88,7 @@
     </Item.Actions>
   </Item.Root>
 
-  <Button class="text-card-foreground">
+  <Button onclick={() => logout()} class="text-card-foreground">
     Logga ut
   </Button> 
 
