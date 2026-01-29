@@ -238,6 +238,8 @@ pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web
 
     let products = database::crud::get_products(&state.db).await?;
 
+    let _ = utils::delete_img_from_disk(&format!("{}", product.id));
+
     Ok(HttpResponse::Ok().json(products))
 }
 
