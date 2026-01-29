@@ -1,4 +1,4 @@
-use sqlx::{Result, SqlitePool, query, query_as, query_scalar};
+use sqlx::{Result, SqlitePool};
 use time::UtcDateTime;
 
 use crate::database::model::{TransactionItemRow, TransactionRow};
@@ -90,7 +90,7 @@ pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32, new_email: &
 }
 
 pub async fn get_user_from_email_switch(pool: &SqlitePool, new_email: &str) -> Result<u32, AppError> {
-    let user_id: u32 = query_scalar(
+    let user_id: u32 = sqlx::query_scalar(
         r#"
         SELECT user 
         FROM EmailSwitch 
