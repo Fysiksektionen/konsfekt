@@ -18,7 +18,7 @@ CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword
 CREATE TABLE TransactionItem (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_id INTEGER NOT NULL,
-    product INTEGER NOT NULL,
+    product INTEGER,
     quantity INTEGER NOT NULL,
     name TEXT NOT NULL,
     price REAL NOT NULL,
