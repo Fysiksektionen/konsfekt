@@ -47,8 +47,10 @@ pub async fn session_middleware(
 
                 // Validation Good
                 Ok(Some(session)) => {
-                    req.extensions_mut().insert(session);
-                    if path == LOGIN_PATH { return Ok(redirect_response(state, req, "/")) };
+                    req.extensions_mut().insert(session.clone());
+                    if path == LOGIN_PATH { 
+                        return Ok(redirect_response(state, req, "/")) 
+                    };
                     next.call(req).await
                 }
 
@@ -332,7 +334,7 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
 }
 
 #[get("/api/auth/google/callback")]
-pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthRequest>) -> Result<impl Responder, AppError> {
+pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<AuthRequest>) -> Result<impl Responder, AppError> {
     let resp: GoogleTokenResponse = state.client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
@@ -350,18 +352,28 @@ pub async fn google_callback(state: Data<AppState>, query: web::Query<AuthReques
         .bearer_auth(&resp.access_token)
         .send().await?
         .json().await?;
+    
+    if let Ok(existing_user) = user_from_cookie(&state.db, &req).await {
+        if existing_user.switching_email {
+            // Update database
+            crud::finalize_email_switch(&state.db, existing_user.id, &user_info.email, &user_info.id).await?;
+            // // Unlink olfrom google
+            // state.client
+            //     .post("https://oauth2.googleapis.com/revoke")
+            //     .form(&[
+            //         ("token", resp.access_token.as_str()),
+            //     ])
+            //     .send().await?;
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", utils::get_path(&state, "/")))
+                .finish()
+            );
+        }
+    }
 
     let mut user = crud::get_user(&state.db, None, Some(&user_info.id)).await;
     if user.is_err() {
-        if let Ok(user_id) = crud::get_user_from_email_switch(&state.db, &user_info.email).await {
-            // Used email found in reserved email table
-            // User wants to change email
-            crud::finalize_email_switch(&state.db, user_id, &user_info.email, &user_info.id).await?;
-            
-            user = crud::get_user(&state.db, Some(user_id), None).await;
-        } else {
-            user = crud::create_user(&state.db, None, &user_info.email, &user_info.id).await;
-        }
+        user = crud::create_user(&state.db, None, &user_info.email, &user_info.id).await;
     };
 
     let session_token = match auth::create_session(&state.db, user?.id).await {
@@ -401,9 +413,15 @@ pub async fn logout(state: Data<AppState>, req: HttpRequest) -> Result<impl Resp
     )
 }
 
-// #[get("/api/auth/change_email")]
-// pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
-// }
+#[get("/api/auth/change_email")]
+pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    crud::initiate_email_switch(&state.db, user.id).await?;
+
+    Ok(HttpResponse::Found()
+        .append_header(("Location", utils::get_path(&state, "/api/auth/google")))
+        .finish())
+}
 
 //
 //      Debug

@@ -11,7 +11,7 @@ use crate::{database::{crud, model}, AppError};
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
 pub const AUTH_COOKIE: &str = "session-token";
 
-#[derive(sqlx::FromRow, serde::Serialize)]
+#[derive(sqlx::FromRow, serde::Serialize, Clone)]
 pub struct Session {
     pub id: String,
     secret_hash: String,

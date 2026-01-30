@@ -2,7 +2,7 @@ use std::{fs, io::BufReader};
 
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::web::Data;
-use image::{GenericImageView, ImageReader};
+use image::ImageReader;
 
 use crate::{AppError, AppState};
 

@@ -33,6 +33,10 @@
  function logout() {
    goto("/api/auth/logout");
  }
+
+ function changeEmail() {
+   goto("/api/auth/change_email");
+ }
 </script>
 
 <div class="w-full md:pl-10 md:pr-10 lg:pl-30 lg:pr-30 gap-3 flex flex-col items-start">
@@ -84,7 +88,7 @@
       </Item.Description>
     </Item.Content>
     <Item.Actions>
-      <Button variant="outline" class="hover:bg-primary" size="sm">Logga in med annan Gmail</Button>
+      <Button onclick={() => changeEmail()} variant="outline" class="hover:bg-primary" size="sm">Logga in med annan Gmail</Button>
     </Item.Actions>
   </Item.Root>
 

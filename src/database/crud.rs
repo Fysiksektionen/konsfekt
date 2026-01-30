@@ -19,8 +19,8 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
     let role = if user_table_has_rows { Role::User } else { Role::Admin };
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO User (name, email, google_id, role, balance)
-        VALUES (?, ?, ?, ?, 0)
+        INSERT INTO User (name, email, google_id, role, balance, switching_email)
+        VALUES (?, ?, ?, ?, 0, 0)
         RETURNING id
         "#).bind(name).bind(email).bind(google_id).bind(&role).fetch_one(pool)
     .await?;
@@ -31,14 +31,15 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
         email: email.to_string(), 
         google_id: google_id.to_string(),
         role,
-        balance: 0.0
+        balance: 0.0,
+        switching_email: false
     })
 }
 
 pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<User, AppError> {
     let user: User = sqlx::query_as(
         r#"
-        SELECT id, name, email, google_id, role, balance 
+        SELECT id, name, email, google_id, role, balance, switching_email
         FROM User 
         WHERE id = ? OR google_id = ?
         "#).bind(user_id).bind(google_id).fetch_one(pool).await?;
@@ -78,54 +79,30 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
     Ok(())
 }
 
-pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str) -> Result<(), AppError> {
+pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), AppError> {
     sqlx::query(
         r#"
-        INSERT INTO EmailSwitch (user_id, new_email)
-        VALUES (?, ?)
+        UPDATE User SET switching_email = 1
+        WHERE id = ?
         "#
-    ).bind(user_id).bind(new_email).execute(pool).await?;
+    ).bind(user_id).execute(pool).await?;
 
     Ok(())
 }
 
-pub async fn get_user_from_email_switch(pool: &SqlitePool, new_email: &str) -> Result<u32, AppError> {
-    let user_id: u32 = sqlx::query_scalar(
-        r#"
-        SELECT user 
-        FROM EmailSwitch 
-        WHERE new_email = ?
-        "#
-    ).bind(new_email).fetch_one(pool).await?;
-
-    Ok(user_id)
-}
-
 pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str, google_id: &str) -> Result<(), AppError> {
-    let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
         UPDATE User SET 
             email = ?, 
-            google_id = ?, 
+            google_id = ?,
+            switching_email = 0
         WHERE id = ?
-        "#).bind(new_email).bind(google_id).bind(user_id).execute(&mut *tx).await?;
-
-    sqlx::query(
-        r#"
-        DELETE FROM EmailSwitch 
-        WHERE id = ?
-        "#
-    ).bind(user_id).execute(&mut *tx).await?;
+        "#).bind(new_email).bind(google_id).bind(user_id).execute(pool).await?;
 
     Ok(())
 }
 
-// pub async fn remove_email_switch(pool: &SqlitePool, email: &str) -> Result<(), AppError> {
-//     query()
-// 
-// 
-// }
 //
 //          Shop
 //
