@@ -17,6 +17,7 @@
     import Button from "$lib/components/ui/button/button.svelte";
     import Switch from "$lib/components/ui/switch/switch.svelte";
     import ProductWarnings from "./ProductWarnings.svelte";
+    import SafetyButton from "$lib/components/SafetyButton.svelte";
  
  let { validatedForm, onFormSubmit, isCreateForm }: { 
    validatedForm: SuperValidated<Infer<ProductFormSchema>>;
@@ -204,9 +205,12 @@
         <Button variant="link" class="text-foreground" onclick={() => showRemoveButton = false}>
           Dölj
         </Button>
-        <Button variant="destructive" onclick={async () => await removeProduct()}>
+        <!-- <Button variant="destructive" onclick={async () => await removeProduct()}>
           Ta bort produkt
-        </Button>
+        </Button> -->
+        <SafetyButton action={async () => await removeProduct()}>
+          Ta bort produkt
+        </SafetyButton>
       </div>
     {:else if !isCreateForm}
       <Button variant="link" class="text-foreground" onclick={() => showRemoveButton = true}>
