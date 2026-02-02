@@ -14,7 +14,7 @@ import UserTable from "./UserTable.svelte";
 import { get_roles, Role, type User } from "./schema";
     import { Badge } from "$lib/components/ui/badge";
     import { backendPOST } from "$lib/utils";
-
+    import SafetyButton from "$lib/components/SafetyButton.svelte";
 
 let { data } = $props();
 let admins = $state(data.admins);
@@ -78,7 +78,7 @@ function save_user_dialog(): void {
 </div>
 
 <div class="p-10">
-    <h2>Maintaines</h2>
+    <h2>Maintainers</h2>
     <Separator />
     <UserTable data={maintainers} onclick={open_dialog} />
 </div>
@@ -110,7 +110,7 @@ function save_user_dialog(): void {
 
             <div class="grid gap-3">
                 <Label>Saldo</Label>
-                <Input bind:value={user_dialog_data.balance} defaultValue={current_user.balance} />
+                <Input bind:value={user_dialog_data.balance} defaultValue={current_user.balance} type="number" />
             </div>
 
             {#if data.user.role === Role.Admin}
@@ -123,7 +123,7 @@ function save_user_dialog(): void {
                 <div class="grid col-span-3">
                     <Select.Root type="single" bind:value={user_dialog_data.role}>
                         <Select.Trigger class="w-[200px]">
-                            {get_roles().find((f) => f.value == user_dialog_data.role)?.label ?? "Välj roll"}
+                            {get_roles().find((f: {value: string}) => f.value == user_dialog_data.role)?.label ?? "Välj roll"}
                         </Select.Trigger>
                         <Select.Content>
                         <Select.Group>
@@ -141,7 +141,7 @@ function save_user_dialog(): void {
                     </Select.Root>
                 </div>
             </div>
-            <Button variant="destructive" class="max-w-35">Ta bort användare</Button>
+             <SafetyButton action={() => alert("TODO: remove user")} class="max-w-35">Ta bort användare</SafetyButton>
             { /if }
         </div>
         <Dialog.Footer>

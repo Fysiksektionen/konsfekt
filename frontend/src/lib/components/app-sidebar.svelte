@@ -39,13 +39,18 @@
 				url: "/admin/statistik",
 				icon: ChartIcon,
 			},
-		],
-		navSecondary: [
 			{
-				title: "Roller",
-				url: "/admin/roller",
+				title: "Personer",
+				url: "/admin/personer",
 				icon: RoleIcon,
 			},
+		],
+		navSecondary: [
+			// {
+			// 	title: "Roller",
+			// 	url: "/admin/roller",
+			// 	icon: RoleIcon,
+			// },
 		],
 	};
 

@@ -32,7 +32,7 @@ let { data, onclick } = $props()
             <Table.Row onclick={() => {onclick(row)}}>
                 <Table.Cell>{row.email}</Table.Cell>
                 <Table.Cell>{row.name}</Table.Cell>
-                <Table.Cell>{get_roles().find((f) => f.value == row.role)?.label}</Table.Cell>
+                <Table.Cell>{get_roles().find((f: {value: string}) => f.value == row.role)?.label}</Table.Cell>
                 <Table.Cell>{row.id}</Table.Cell>
             </Table.Row>
         {/each}
