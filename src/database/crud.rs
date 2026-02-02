@@ -1,3 +1,4 @@
+use actix_web::App;
 use sqlx::{Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
@@ -43,6 +44,19 @@ pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option
         WHERE id = ? OR google_id = ?
         "#).bind(user_id).bind(google_id).fetch_one(pool).await?;
     Ok(user)
+}
+
+pub async fn update_user(pool: &SqlitePool, user: User) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        UPDATE User SET name = ?, role = ?, balance = ?  
+        WHERE id = ?
+        "#)
+        .bind(user.name)
+        .bind(user.role)
+        .bind(user.balance)
+        .bind(user.id).execute(pool).await?;
+    Ok(())
 }
 
 pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<(), AppError> {
@@ -124,6 +138,16 @@ pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<
     ).bind(user_id).execute(pool).await?;
 
     Ok(())
+}
+
+pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<User>, AppError> {
+    let users: Vec<User> = sqlx::query_as(
+        r#"
+        SELECT id, name, email, google_id, role, balance 
+        FROM User 
+        WHERE role = ?
+        "#).bind(role).fetch_all(pool).await?;
+    Ok(users)
 }
 
 pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str, google_id: &str) -> Result<(), AppError> {

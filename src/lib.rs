@@ -60,15 +60,27 @@ impl EnvironmentVariables {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Deserialize, Serialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Deserialize, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "role", rename_all = "lowercase")]
 /// Discriminants: permission levels
 pub enum Role {
     User = 0,
-    Maintainer = 1,
-    Bot = 2,
+    Bot = 1,
+    Maintainer = 2,
     Admin = 3,
+}
+
+impl Role {
+    pub fn from_str(string: &str) -> Role {
+        match string.to_lowercase().as_str() {
+            "user" => Role::User,
+            "bot" => Role::Bot,
+            "maintainer" => Role::Maintainer,
+            "admin" => Role::Admin,
+            _ => Role::User
+        }
+    }
 }
 
 #[derive(Clone)]
