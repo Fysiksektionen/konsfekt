@@ -4,7 +4,7 @@ use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartF
 use sqlx::SqlitePool;
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth::{self, Session}, database::{self, crud, model::User}, model::{PendingTransaction, Product, ProductParams}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth::{self, EmailSwitchState, Session}, database::{self, crud, model::User}, model::{PendingTransaction, Product, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -48,7 +48,7 @@ pub async fn session_middleware(
                 // Validation Good
                 Ok(Some(session)) => {
                     req.extensions_mut().insert(session.clone());
-                    if path == LOGIN_PATH { 
+                    if path == LOGIN_PATH {
                         return Ok(redirect_response(state, req, "/")) 
                     };
                     next.call(req).await
@@ -311,6 +311,7 @@ struct AuthRequest {
 #[derive(Deserialize, Debug)]
 struct GoogleTokenResponse {
     access_token: String,
+    refresh_token: Option<String>
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -324,7 +325,7 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
         client_id={}&redirect_uri={}/api/auth/google/callback&response_type=code&\
-        scope=openid%20email&access_type=offline",
+        scope=openid%20email&access_type=online",
         state.env.google_client_id, state.env.site_domain
     );
 
@@ -352,22 +353,10 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
         .bearer_auth(&resp.access_token)
         .send().await?
         .json().await?;
-    
-    if let Ok(existing_user) = user_from_cookie(&state.db, &req).await {
-        if existing_user.switching_email {
-            // Update database
-            crud::finalize_email_switch(&state.db, existing_user.id, &user_info.email, &user_info.id).await?;
-            // // Unlink olfrom google
-            // state.client
-            //     .post("https://oauth2.googleapis.com/revoke")
-            //     .form(&[
-            //         ("token", resp.access_token.as_str()),
-            //     ])
-            //     .send().await?;
-            return Ok(HttpResponse::Found()
-                .append_header(("Location", utils::get_path(&state, "/")))
-                .finish()
-            );
+
+    if let Ok(logged_in_user) = user_from_cookie(&state.db, &req).await {
+        if crud::email_switch_exists(&state.db, logged_in_user.id).await? {
+            crud::finalize_email_switch(&state.db, logged_in_user.id, &user_info.email, &user_info.id).await?;
         }
     }
 
@@ -376,7 +365,11 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
         user = crud::create_user(&state.db, None, &user_info.email, &user_info.id).await;
     };
 
-    let session_token = match auth::create_session(&state.db, user?.id).await {
+    return create_session_response(state, user?.id).await;
+}
+
+async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<impl Responder, AppError> {
+    let session_token = match auth::create_session(&state.db, user_id).await {
         Ok((_, token)) => token,
         Err(_) => return Err(AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not create session")))
     };
@@ -391,6 +384,7 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
         .cookie(cookie)
         .finish()
     )
+
 }
 
 #[get("/api/auth/logout")]
@@ -421,6 +415,14 @@ pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<imp
     Ok(HttpResponse::Found()
         .append_header(("Location", utils::get_path(&state, "/api/auth/google")))
         .finish())
+}
+
+#[get("/api/auth/cancel_email_change")]
+pub async fn cancel_email_change(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    crud::invalidate_email_switch(&state.db, user.id).await?;
+
+    Ok(HttpResponse::Ok())
 }
 
 //

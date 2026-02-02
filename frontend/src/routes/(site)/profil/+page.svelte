@@ -29,14 +29,6 @@
    currentTransaction = transaction;
    transactionViewOpen = true;
  }
-
- function logout() {
-   goto("/api/auth/logout");
- }
-
- function changeEmail() {
-   goto("/api/auth/change_email");
- }
 </script>
 
 <div class="w-full md:pl-10 md:pr-10 lg:pl-30 lg:pr-30 gap-3 flex flex-col items-start">
@@ -88,13 +80,19 @@
       </Item.Description>
     </Item.Content>
     <Item.Actions>
-      <Button onclick={() => changeEmail()} variant="outline" class="hover:bg-primary" size="sm">Logga in med annan Gmail</Button>
+      <Button href="/profil/byt-mail" variant="outline" class="hover:bg-primary" size="sm">Byt Gmail-address</Button>
     </Item.Actions>
   </Item.Root>
+  
+  <div class="flex">
+    <Button href="/api/auth/logout" class="text-card-foreground">
+      Logga ut
+    </Button> 
+    <Button href="/profil/radera-konto" variant="link" class="text-foreground">
+      Jag vill ta bort mitt konto
+    </Button> 
 
-  <Button onclick={() => logout()} class="text-card-foreground">
-    Logga ut
-  </Button> 
+  </div>
 
   <div class="flex flex-col w-full gap-2">
     <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Köp- och insättningshistorik</h3> 

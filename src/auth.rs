@@ -24,6 +24,12 @@ pub struct Token {
     secret: String
 }
 
+pub enum EmailSwitchState {
+    Authorized(String),
+    Active,
+    Inactive
+}
+
 pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     if let Some(cookie) = cookie {
         let session_token = cookie.to_string();

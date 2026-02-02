@@ -1,5 +1,5 @@
 use sqlx::{Result, SqlitePool};
-use time::UtcDateTime;
+use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{TransactionItemRow, TransactionRow};
 use crate::model::{PendingTransaction, Transaction};
@@ -19,8 +19,8 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
     let role = if user_table_has_rows { Role::User } else { Role::Admin };
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO User (name, email, google_id, role, balance, switching_email)
-        VALUES (?, ?, ?, ?, 0, 0)
+        INSERT INTO User (name, email, google_id, role, balance)
+        VALUES (?, ?, ?, ?, 0)
         RETURNING id
         "#).bind(name).bind(email).bind(google_id).bind(&role).fetch_one(pool)
     .await?;
@@ -31,15 +31,14 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
         email: email.to_string(), 
         google_id: google_id.to_string(),
         role,
-        balance: 0.0,
-        switching_email: false
+        balance: 0.0
     })
 }
 
 pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<User, AppError> {
     let user: User = sqlx::query_as(
         r#"
-        SELECT id, name, email, google_id, role, balance, switching_email
+        SELECT id, name, email, google_id, role, balance
         FROM User 
         WHERE id = ? OR google_id = ?
         "#).bind(user_id).bind(google_id).fetch_one(pool).await?;
@@ -80,10 +79,47 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
 }
 
 pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), AppError> {
+    let now = OffsetDateTime::now_utc().unix_timestamp();
     sqlx::query(
         r#"
-        UPDATE User SET switching_email = 1
-        WHERE id = ?
+        INSERT INTO EmailSwitch (user, created_at)
+        VALUES (?, ?)
+        "#
+    ).bind(user_id).bind(now).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn authorize_email_switch(pool: &SqlitePool, user_id: u32, access_token: &str) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        UPDATE EmailSwitch SET access_token = ?
+        WHERE user = ?
+        "#
+    ).bind(access_token).bind(user_id).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn email_switch_exists(pool: &SqlitePool, user_id: u32) -> Result<bool, AppError> {
+    let exists: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM EmailSwitch
+            WHERE user = ? AND created_at > strftime('%s', 'now') - 60
+        )
+        "#
+    ).bind(user_id).fetch_one(pool).await?;
+
+    return Ok(exists);
+}
+
+pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        DELETE FROM EmailSwitch
+        WHERE user = ?
         "#
     ).bind(user_id).execute(pool).await?;
 
@@ -91,14 +127,23 @@ pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<()
 }
 
 pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str, google_id: &str) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
         UPDATE User SET 
             email = ?, 
-            google_id = ?,
-            switching_email = 0
+            google_id = ?
         WHERE id = ?
-        "#).bind(new_email).bind(google_id).bind(user_id).execute(pool).await?;
+        "#).bind(new_email).bind(google_id).bind(user_id).execute(&mut *tx).await?;
+
+    sqlx::query(
+        r#"
+        DELETE FROM EmailSwitch
+        WHERE user = ?
+        "#
+    ).bind(user_id).execute(&mut *tx).await?;
+
+    tx.commit().await?;
 
     Ok(())
 }
@@ -108,7 +153,6 @@ pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &
 //
 
 pub async fn create_product(pool: &SqlitePool, mut product: ProductRow) -> Result<ProductRow, AppError> {
-    
     let id: u32 = sqlx::query_scalar(
         r#"
         INSERT INTO Product (name, price, description, flags)
