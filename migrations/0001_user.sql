@@ -1,6 +1,6 @@
 CREATE TABLE User (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
+    name TEXT UNIQUE,
     email TEXT NOT NULL,
     google_id TEXT UNIQUE,
     role TEXT NOT NULL CHECK(role IN ('admin', 'maintainer', 'bot', 'user')),

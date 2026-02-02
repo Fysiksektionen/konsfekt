@@ -8,13 +8,13 @@
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
     import { Separator } from "$lib/components/ui/separator/index.js";
     import * as Dialog from "$lib/components/ui/dialog/index.js";
-    import { getDateString } from "$lib/utils";
+    import { backendPOST, getDateString } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { Badge } from '$lib/components/ui/badge';
-    import { goto } from '$app/navigation';
+    import { invalidateAll } from '$app/navigation';
 
 	let { data }: PageProps = $props();
-
+  
   let username = $state(data.user.name);
   
   let transactions = $state(data.transactions)
@@ -28,6 +28,13 @@
  function onTransactionClicked(transaction: Transaction) {
    currentTransaction = transaction;
    transactionViewOpen = true;
+ }
+
+ async function setUsername() {
+   let resp = await backendPOST("/set_username", {name: username}, true);
+   if (resp.ok) {
+     invalidateAll();
+   }
  }
 </script>
 
@@ -64,7 +71,7 @@
    <div class="flex gap-3">
     <Input bind:value={username} type="name" placeholder='Ditt namn'/>
     {#if username}
-      <Button type="submit" class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
+      <Button onclick={() => setUsername()} type="submit" class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
     {:else}
       <Button type="submit" disabled class="text-card-foreground" variant="secondary">{data.user.name ? "Byt namn" : "Lägg till namn"}</Button>
     {/if}

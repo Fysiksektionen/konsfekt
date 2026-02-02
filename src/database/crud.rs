@@ -1,4 +1,3 @@
-use actix_web::App;
 use sqlx::{Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
@@ -78,6 +77,7 @@ pub async fn update_user_name(pool: &SqlitePool, user_id: u32, new_name: &str) -
         "#).bind(new_name).bind(user_id)
     .execute(pool)
     .await?;
+    // TODO throw username already exists error if unique conflict
     Ok(())
 }
 

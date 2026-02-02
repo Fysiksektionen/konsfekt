@@ -4,7 +4,7 @@ use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartF
 use sqlx::SqlitePool;
 use time::Duration;
 
-use crate::{AppError, AppState, Role, auth::{self, EmailSwitchState, Session}, database::{self, crud, model::User}, model::{PendingTransaction, Product, ProductParams}, utils::{self, get_path}};
+use crate::{AppError, AppState, Role, auth::{self, Session}, database::{self, crud, model::User}, model::{PendingTransaction, Product, ProductParams}, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -152,6 +152,19 @@ struct UpdateUserParams {
     name: Option<String>,
     balance: Option<f32>,
     role: Option<Role>
+}
+
+#[derive(Deserialize)]
+struct ChangeUsernameParam {
+    name: String,
+}
+
+#[post("/api/set_username")]
+pub async fn set_username(state: Data<AppState>, req: HttpRequest, params: web::Json<ChangeUsernameParam>) -> Result<(), AppError> { 
+    let user = user_from_cookie(&state.db, &req).await?;
+    crud::update_user_name(&state.db, user.id, &params.name).await?;
+
+    Ok(())
 }
 
 
@@ -369,7 +382,7 @@ struct AuthRequest {
 #[derive(Deserialize, Debug)]
 struct GoogleTokenResponse {
     access_token: String,
-    refresh_token: Option<String>
+    // refresh_token: Option<String>
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -473,14 +486,6 @@ pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<imp
     Ok(HttpResponse::Found()
         .append_header(("Location", utils::get_path(&state, "/api/auth/google")))
         .finish())
-}
-
-#[get("/api/auth/cancel_email_change")]
-pub async fn cancel_email_change(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
-    let user = user_from_cookie(&state.db, &req).await?;
-    crud::invalidate_email_switch(&state.db, user.id).await?;
-
-    Ok(HttpResponse::Ok())
 }
 
 //
