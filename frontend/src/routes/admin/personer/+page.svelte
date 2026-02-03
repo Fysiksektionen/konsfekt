@@ -80,22 +80,45 @@ function delete_current_user(): void {
 </script>
 
 <div>    
-    <h2>Admins</h2>
+    <h2>Administratörer</h2>
     <Separator />
-    <UserTable data={admins} onclick={open_dialog} />
+    <div class="pt-2">
+        <UserTable data={admins} onclick={open_dialog} />
+    </div>
 </div>
 
-<div class="p-10">
-    <h2>Maintainers</h2>
+<div class="mt-5 mb-5">
+    <h2>Underhållare</h2>
     <Separator />
-    <UserTable data={maintainers} onclick={open_dialog} />
+    <div class="pt-2">
+        <UserTable data={maintainers} onclick={open_dialog} />
+    </div>
 </div>
 
 <div>
-    <h2>Users</h2>
+    <h2>Användare</h2>
     <Separator />
+
+    <div class="p-2 pl-0 flex flex-row">
+        <Input placeholder="Sök efter användare..." class="max-w-sm mr-1" />
+        <Select.Root type="single">
+            <Select.Trigger class="w-[100px]">
+            Namn
+        </Select.Trigger>
+            <Select.Content>
+            <Select.Group>
+                <Select.Label>Filter</Select.Label>
+                <Select.Item value="name" label="Namn">Namn</Select.Item>
+                    <Select.Item value="email" label="Email">Email</Select.Item>
+                    <Select.Item value="id" label="Id">Id</Select.Item>
+                </Select.Group>
+            </Select.Content>
+        </Select.Root>
+    </div>
+
     <UserTable data={users} onclick={open_dialog} />
 </div>
+
 
 <Dialog.Root bind:open={show_user_dialog}>
 
