@@ -39,26 +39,29 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
 
             // Google Auth
-            .service(routes::google_login)
-            .service(routes::google_callback)
-            .service(routes::logout)
-            .service(routes::change_email)
+            .service(routes::oauth::google_login)
+            .service(routes::oauth::google_callback)
+            .service(routes::oauth::logout)
+            .service(routes::oauth::change_email)
 
             // User API
-            .service(routes::get_user)
-            .service(routes::update_user)
-            .service(routes::set_username)
-            .service(routes::get_users)
-            .service(routes::get_transactions)
+            .service(routes::user::get_user)
+            .service(routes::user::update_user)
+            .service(routes::user::set_username)
+            .service(routes::user::get_users)
+            .service(routes::user::get_transactions)
 
             // Product API
-            .service(routes::create_product)
-            .service(routes::get_products)
-            .service(routes::update_product)
-            .service(routes::delete_product)
+            .service(routes::products::create_product)
+            .service(routes::products::get_products)
+            .service(routes::products::update_product)
+            .service(routes::products::delete_product)
 
-            .service(routes::buy_products)
-            .service(routes::mark_sold_out)
+            .service(routes::products::buy_products)
+            .service(routes::products::mark_sold_out)
+
+            // Stats API
+            .service(routes::stats::get_best_selling_product)
 
             // Uploads
             .service(scope("/uploads")
@@ -66,7 +69,7 @@ async fn main() -> std::io::Result<()> {
                 .service(actix_files::Files::new("", "./db/uploads")));
 
         if env.is_debug {
-            app = app.service(routes::debug_add_money);
+            app = app.service(routes::debug::add_money);
         }
 
         if env.static_frontend {

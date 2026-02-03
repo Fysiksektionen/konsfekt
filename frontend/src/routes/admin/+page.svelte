@@ -1,14 +1,74 @@
 <script lang="ts">
-	import SectionCards from "$lib/components/section-cards.svelte";
-	// import ChartAreaInteractive from "$lib/components/chart-area-interactive.svelte";
   import type { PageProps } from "./$types.js";
+	import * as Card from "$lib/components/ui/card/index.js";
   let { data }: PageProps = $props();
 </script>
 
 <div class="flex flex-1 flex-col">
 	<div class="@container/main flex flex-1 flex-col gap-2">
 		<div class="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-			<SectionCards />
+      <div
+      	class="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t lg:px-6"
+      >
+      	<Card.Root class="@container/card">
+      		<Card.Header>
+      			<Card.Description>Mest köpta produkt</Card.Description>
+      			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
+      				{data.bestSellingProd.name}
+      			</Card.Title>
+      		</Card.Header>
+      		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
+      			<div class="line-clamp-1 flex gap-2 font-medium">
+      				Totala antalet sålda
+      			</div>
+      			<div class="text-muted-foreground">
+      				{data.bestSellingProd.total_sold}
+            </div>
+      		</Card.Footer>
+      	</Card.Root>
+      	<Card.Root class="@container/card">
+      		<Card.Header>
+      			<Card.Description>Omsättning</Card.Description>
+      			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
+      				5643kr
+      			</Card.Title>
+      		</Card.Header>
+      		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
+      			<div class="line-clamp-1 flex gap-2 font-medium">
+              Totala antalet köp
+      			</div>
+      			<div class="text-muted-foreground">632</div>
+      		</Card.Footer>
+      	</Card.Root>
+      	<Card.Root class="@container/card">
+      		<Card.Header>
+      			<Card.Description>Godisskåpskunder</Card.Description>
+      			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
+      				46
+      			</Card.Title>
+      		</Card.Header>
+      		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
+      			<div class="line-clamp-1 flex gap-2 font-medium">
+              Antalet registrerade på leaderboard
+      			</div>
+      			<div class="text-muted-foreground">39</div>
+      		</Card.Footer>
+      	</Card.Root>
+      	<Card.Root class="@container/card">
+      		<Card.Header>
+      			<Card.Description>Intäkter</Card.Description>
+      			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
+      				13579kr
+      			</Card.Title>
+      		</Card.Header>
+      		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
+      			<div class="line-clamp-1 flex gap-2 font-medium">
+      				Medelinsättning
+      			</div>
+      			<div class="text-muted-foreground">179kr</div>
+      		</Card.Footer>
+      	</Card.Root>
+      </div>
       <!--
 			<div class="px-4 lg:px-6">
 				<ChartAreaInteractive />
