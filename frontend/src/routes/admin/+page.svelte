@@ -2,6 +2,8 @@
   import type { PageProps } from "./$types.js";
 	import * as Card from "$lib/components/ui/card/index.js";
   let { data }: PageProps = $props();
+
+  console.log(data);
 </script>
 
 <div class="flex flex-1 flex-col">
@@ -14,7 +16,7 @@
       		<Card.Header>
       			<Card.Description>Mest köpta produkt</Card.Description>
       			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
-      				{data.bestSellingProd.name}
+      				{data.bestSellingProd?.name ?? "-"}
       			</Card.Title>
       		</Card.Header>
       		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
@@ -22,7 +24,7 @@
       				Totala antalet sålda
       			</div>
       			<div class="text-muted-foreground">
-      				{data.bestSellingProd.total_sold}
+      				{data.bestSellingProd?.total_sold ?? "-"}
             </div>
       		</Card.Footer>
       	</Card.Root>
