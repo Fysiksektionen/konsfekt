@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{AppError, AppState, Role, database::{crud, model::User}, routes::user_from_cookie};
 
 #[derive(Serialize)]
-struct UserResponse {
+struct GetUserResponse {
     id: u32,
     name: Option<String>,
     email: String,
@@ -13,10 +13,10 @@ struct UserResponse {
 }
 
 #[get("/api/get_user")]
-pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<UserResponse>, AppError> {
+pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<GetUserResponse>, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
     
-    let user_response = UserResponse {
+    let user_response = GetUserResponse {
         id: user.id,
         name: user.name,
         email: user.email,
@@ -53,6 +53,24 @@ pub async fn get_users(state: Data<AppState>, req: HttpRequest, query: web::Quer
         },
         None => Err(AppError::BadRequest(String::from("Bad Request")))
     }
+}
+
+#[derive(Deserialize)]
+struct DeleteUserQuery {
+    id: u32,  
+}
+
+#[post("/api/delete_user")]
+pub async fn delete_user(state: Data<AppState>, req: HttpRequest, query: web::Query<DeleteUserQuery>) -> Result<(), AppError> {
+    
+    let user = user_from_cookie(&state.db, &req).await?;
+    if user.role <= Role::Maintainer {
+        return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Cannot delete other users")));
+    }
+    
+    crud::delete_user(&state.db, query.id).await?;
+
+    Ok(())
 }
 
 #[derive(Deserialize)]

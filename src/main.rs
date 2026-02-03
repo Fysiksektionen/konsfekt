@@ -46,6 +46,7 @@ async fn main() -> std::io::Result<()> {
 
             // User API
             .service(routes::user::get_user)
+            .service(routes::user::delete_user)
             .service(routes::user::update_user)
             .service(routes::user::set_username)
             .service(routes::user::get_users)

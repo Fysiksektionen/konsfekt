@@ -68,6 +68,14 @@ function save_user_dialog(): void {
       }, true);
 }
 
+function delete_current_user(): void {
+    backendPOST("/delete_user?id=" + current_user.id, {}, true);
+
+    let i = users.findIndex(item => item.id == current_user.id);
+    users.splice(i, 1);
+
+    show_user_dialog = false;
+}
 
 </script>
 
@@ -141,7 +149,11 @@ function save_user_dialog(): void {
                     </Select.Root>
                 </div>
             </div>
-             <SafetyButton action={() => alert("TODO: remove user")} class="max-w-35">Ta bort användare</SafetyButton>
+
+            {#if current_user.role != Role.Admin}
+             <SafetyButton action={delete_current_user} class="max-w-35">Ta bort användare</SafetyButton>
+            { /if }
+
             { /if }
         </div>
         <Dialog.Footer>
