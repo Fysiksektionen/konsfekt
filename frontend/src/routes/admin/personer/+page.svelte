@@ -11,7 +11,7 @@ import { Separator } from "$lib/components/ui/separator/index.js";
 
 import UserTable from "./UserTable.svelte";
     
-import { get_roles, Role, type User } from "./schema";
+import { get_roles, Role, search_filter_label, SearchFilter, type User, type Filter } from "./schema";
     import { Badge } from "$lib/components/ui/badge";
     import { backendPOST } from "$lib/utils";
     import SafetyButton from "$lib/components/SafetyButton.svelte";
@@ -25,6 +25,8 @@ let users = $state(data.users);
 let current_user: User = $state({id: 0, email: "", name: "", role: Role.User, balance: 0})
 let show_user_dialog = $state(false)
 let user_dialog_data = $state({name: "", balance: "", role: Role.User})
+
+let search_filter: Filter = $state({ search_term: "", search_filter: SearchFilter.Name });
 
 function open_dialog(user: User): void {
     show_user_dialog = true;
@@ -100,23 +102,25 @@ function delete_current_user(): void {
     <Separator />
 
     <div class="p-2 pl-0 flex flex-row">
-        <Input placeholder="Sök efter användare..." class="max-w-sm mr-1" />
-        <Select.Root type="single">
-            <Select.Trigger class="w-[100px]">
-            Namn
+        <Input placeholder="Sök efter användare..." class="max-w-sm mr-1" bind:value={search_filter.search_term}/>
+        <Label class="ml-2 mr-2">filter:</Label>
+
+        <Select.Root type="single" bind:value={search_filter.search_filter}>
+        <Select.Trigger class="w-[100px]">
+            {search_filter_label(search_filter.search_filter)}
         </Select.Trigger>
             <Select.Content>
             <Select.Group>
-                <Select.Label>Filter</Select.Label>
+                <!-- <Select.Label>Filter</Select.Label> -->
                 <Select.Item value="name" label="Namn">Namn</Select.Item>
-                    <Select.Item value="email" label="Email">Email</Select.Item>
-                    <Select.Item value="id" label="Id">Id</Select.Item>
-                </Select.Group>
+                <Select.Item value="email" label="Email">Email</Select.Item>
+                <Select.Item value="id" label="Id">Id</Select.Item>
+            </Select.Group>
             </Select.Content>
         </Select.Root>
     </div>
 
-    <UserTable data={users} onclick={open_dialog} />
+    <UserTable data={users} onclick={open_dialog} filter={search_filter}/>
 </div>
 
 
@@ -174,7 +178,7 @@ function delete_current_user(): void {
             </div>
 
             {#if current_user.role != Role.Admin}
-             <SafetyButton action={delete_current_user} class="max-w-35">Ta bort användare</SafetyButton>
+                <SafetyButton action={delete_current_user} class="max-w-35">Ta bort användare</SafetyButton>
             { /if }
 
             { /if }

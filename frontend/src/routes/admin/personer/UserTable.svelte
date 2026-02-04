@@ -3,9 +3,18 @@
 
 
 import * as Table from "$lib/components/ui/table/index.js";
-    import { get_roles } from "./schema";
+    import { get_roles, type Filter, type User } from "./schema";
 
-let { data, onclick } = $props()
+let { data, onclick, filter = null } = $props()
+
+function filter_data(data: Array<User>, filter: Filter): Array<User> {
+    if (filter != null && filter.search_term != "") {
+        return data.filter((user: User) => ("" + user[filter.search_filter])
+            .toLowerCase()
+            .includes(filter.search_term.toLowerCase()) )
+    }
+    return data
+}
 
 </script>
 
@@ -28,12 +37,12 @@ let { data, onclick } = $props()
         </Table.Row>
     </Table.Header>
     <Table.Body>
-        {#each data as row}
-            <Table.Row onclick={() => {onclick(row)}}>
-                <Table.Cell>{row.email}</Table.Cell>
-                <Table.Cell>{row.name}</Table.Cell>
-                <Table.Cell>{get_roles().find((f: {value: string}) => f.value == row.role)?.label}</Table.Cell>
-                <Table.Cell>{row.id}</Table.Cell>
+        {#each filter_data(data, filter) as user}
+            <Table.Row onclick={() => {onclick(user)}}>
+                <Table.Cell>{user.email}</Table.Cell>
+                <Table.Cell>{user.name}</Table.Cell>
+                <Table.Cell>{get_roles().find((f: {value: string}) => f.value == user.role)?.label}</Table.Cell>
+                <Table.Cell>{user.id}</Table.Cell>
             </Table.Row>
         {/each}
         {#if data.length == 0}
