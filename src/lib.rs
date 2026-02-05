@@ -145,8 +145,6 @@ pub enum AppError {
     BadRequest(String),
 
     SessionError(String),
-
-    
 }
 
 impl ResponseError for AppError {
@@ -159,7 +157,7 @@ impl ResponseError for AppError {
             Self::SessionError(e) => (StatusCode:: INTERNAL_SERVER_ERROR, format!("SessionError: {e}")),
             Self::BadRequest(e) => (StatusCode::BAD_REQUEST, format!("BadRequest: {e}")),
         };
-        println!("{status}, {message}");
+        log::error!("{status}, {message}");
 
         HttpResponse::build(status).body(message)
     }
