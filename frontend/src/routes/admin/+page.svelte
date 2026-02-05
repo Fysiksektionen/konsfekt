@@ -3,7 +3,6 @@
 	import * as Card from "$lib/components/ui/card/index.js";
   let { data }: PageProps = $props();
 
-  console.log(data);
 </script>
 
 <div class="flex flex-1 flex-col">
@@ -32,14 +31,14 @@
       		<Card.Header>
       			<Card.Description>Omsättning</Card.Description>
       			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
-      				5643kr
+              {data.productTransactions?.total ?? "-"}kr
       			</Card.Title>
       		</Card.Header>
       		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
       			<div class="line-clamp-1 flex gap-2 font-medium">
               Totala antalet köp
       			</div>
-      			<div class="text-muted-foreground">632</div>
+      			<div class="text-muted-foreground">{data.productTransactions?.count ?? "-"}</div>
       		</Card.Footer>
       	</Card.Root>
       	<Card.Root class="@container/card">

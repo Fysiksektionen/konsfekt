@@ -62,7 +62,8 @@ async fn main() -> std::io::Result<()> {
             .service(routes::products::mark_sold_out)
 
             // Stats API
-            .service(routes::stats::get_best_selling_product)
+            .service(routes::stats::best_selling_product)
+            .service(routes::stats::product_transactions)
 
             // Uploads
             .service(scope("/uploads")
