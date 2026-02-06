@@ -15,6 +15,7 @@ import { get_roles, Role, search_filter_label, SearchFilter, type User, type Fil
     import { Badge } from "$lib/components/ui/badge";
     import { backendPOST } from "$lib/utils";
     import SafetyButton from "$lib/components/SafetyButton.svelte";
+    import { toast } from "svelte-sonner";
 
 let { data } = $props();
 let admins = $state(data.admins);
@@ -37,7 +38,7 @@ function open_dialog(user: User): void {
     user_dialog_data.role = user.role
 }
 
-function save_user_dialog(): void {
+async function save_user_dialog(): Promise<void> {
     show_user_dialog = false
 
     let user_list = users;// = current_user.role == Role.User ? users: maintainers;
@@ -62,16 +63,23 @@ function save_user_dialog(): void {
     }
 
     // Updatera backend
-    backendPOST("/update_user", {
+    let resp = await backendPOST("/update_user", {
         id: user.id,
         name: user.name == "" ? null: user.name,
         balance: user.balance,
         role: user.role,
       }, true);
+    if (!resp.ok) {
+      toast.error("Kunde inte uppdatera användare: " + resp.statusText);
+    }
 }
 
-function delete_current_user(): void {
-    backendPOST("/delete_user?id=" + current_user.id, {}, true);
+async function delete_current_user(): Promise<void> {
+    let resp = await backendPOST("/delete_user?id=" + current_user.id, {}, true);
+    if (!resp.ok) {
+      toast.error("Kunde inte ta bort användare: " + resp.statusText);
+      return;
+    }
 
     let i = users.findIndex(item => item.id == current_user.id);
     users.splice(i, 1);
