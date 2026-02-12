@@ -71,6 +71,8 @@ async fn main() -> std::io::Result<()> {
             .service(routes::products::delete_product)
 
             .service(routes::products::buy_products)
+            .service(routes::products::buy_single_product)
+            .service(routes::products::undo_transaction)
             .service(routes::products::mark_sold_out)
 
             // Stats API

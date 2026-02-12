@@ -1,6 +1,7 @@
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post, web::{self, Data}};
 use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use sqlx::SqlitePool;
+use time::OffsetDateTime;
 
 use crate::{AppError, AppState, Role, database::{self, model::User}, model::{PendingTransaction, Product, ProductParams}, routes::user_from_cookie, utils};
 
@@ -115,6 +116,38 @@ pub async fn get_products(state: Data<AppState>) -> Result<impl Responder, AppEr
     Ok(HttpResponse::Ok().json(products))
 }
 
+#[derive(sqlx::FromRow, serde::Serialize, serde::Deserialize)]
+struct TransactionIdJson {
+    transaction_id: u32,
+}
+
+#[post("/api/buy_single_product")]
+pub async fn buy_single_product(state: Data<AppState>, req: HttpRequest, product: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let product = database::crud::get_product(&state.db, product.id).await?;
+
+    if product.stock.is_none() {
+        return Err(AppError::ActixError(actix_web::error::ErrorNotFound("Product not available")))
+    }
+    if product.price > user.balance {
+        return Err(AppError::ActixError(actix_web::error::ErrorPaymentRequired("Not enough funds")));
+    }
+
+    let transaction = PendingTransaction {
+        user: user.id,
+        products: vec![(product.clone(), 1)],
+        amount: -product.price
+    };
+     
+    let transaction_id = database::crud::create_transaction(&state.db, transaction).await?;
+    database::crud::update_user_balance(&state.db, user.id, user.balance - product.price).await?;
+    
+    let new_stock = Some(product.stock.unwrap() - 1 as i32);
+    database::crud::update_product_stock(&state.db, product.id, new_stock).await?;
+
+    Ok(HttpResponse::Ok().json(TransactionIdJson { transaction_id }))
+}
+
 #[derive(serde::Deserialize)]
 struct Cart { 
     products: Vec<ProductInCart>
@@ -158,6 +191,24 @@ pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Js
         let new_stock = Some(product.stock.unwrap() - quantity as i32);
         database::crud::update_product_stock(&state.db, product.id, new_stock).await?;
     }
+
+    Ok(HttpResponse::Ok())
+}
+
+#[post("/api/undo_transaction")]
+pub async fn undo_transaction(state: Data<AppState>, req: HttpRequest, transaction_id: web::Json<TransactionIdJson>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+    let transaction = database::crud::get_single_transaction(&state.db, transaction_id.transaction_id).await?;
+
+    if user.id != transaction.user {
+       return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Cannot undo another user's transaction")));
+    }
+    if OffsetDateTime::now_utc().unix_timestamp() - transaction.datetime > 60 {
+       return Err(AppError::ActixError(actix_web::error::ErrorConflict("Transaction cannot be undone anymore")));
+    }
+
+    database::crud::update_user_balance(&state.db, user.id, user.balance + transaction.amount.abs()).await?;
+    database::crud::delete_transaction(&state.db, transaction_id.transaction_id).await?;
 
     Ok(HttpResponse::Ok())
 }

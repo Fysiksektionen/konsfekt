@@ -145,7 +145,7 @@ pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<
 pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<User>, AppError> {
     let users: Vec<User> = sqlx::query_as(
         r#"
-        SELECT id, name, email, google_id, role, balance 
+        SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
         FROM User 
         WHERE role = ?
         "#).bind(role).fetch_all(pool).await?;
@@ -266,7 +266,8 @@ pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), AppError> 
     Ok(())
 }
 
-pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransaction) -> Result<(), AppError> {
+/// Returns the created transaction's id 
+pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransaction) -> Result<u32, AppError> {
     let id: u32 = sqlx::query_scalar(
         r#"
         INSERT INTO StoreTransaction (user, amount, datetime)
@@ -289,7 +290,28 @@ pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransacti
         .bind(product.name)
         .bind(product.price).execute(pool).await?;
     } 
+    Ok(id)
+}
+
+pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        DELETE FROM StoreTransaction 
+        WHERE id = ?
+        "#).bind(transaction_id)
+    .execute(pool)
+    .await?;
     Ok(())
+}
+
+pub async fn get_single_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, AppError> {
+    let transaction: TransactionRow = sqlx::query_as(r#"
+        SELECT id, user, amount, datetime
+        FROM StoreTransaction
+        WHERE id = ?
+        "#).bind(transaction_id).fetch_one(pool).await?;
+
+    Ok(transaction)
 }
 
 pub async fn get_transactions(pool: &SqlitePool, user_id: Option<u32>) -> Result<Vec<Transaction>, AppError> {
