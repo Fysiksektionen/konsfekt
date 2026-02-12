@@ -101,3 +101,44 @@ pub async fn product_transactions(state: Data<AppState>, time_range: web::Query<
     
     Ok(HttpResponse::Ok().json(transactions))
 }
+
+#[derive(sqlx::FromRow, serde::Serialize, Debug)]
+struct DepositsInfo {
+    total: f32,
+    average: f32,
+}
+
+#[get("/api/stats/deposits")]
+pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+    let sql = format!(r#"
+        SELECT
+            COALESCE(SUM(st.amount), 0.0) AS total,
+            COALESCE(AVG(st.amount), 0.0) AS average
+        FROM StoreTransaction st
+        WHERE st.amount > 0 {}
+        "#, time_range.as_predicate("AND "));
+    let info: DepositsInfo = sqlx::query_as(&sql).bind_time_range(time_range.0).fetch_one(&state.db).await?;
+
+    Ok(HttpResponse::Ok().json(info))
+}
+
+#[derive(sqlx::FromRow, serde::Serialize, Debug)]
+struct CustomerInfo {
+    count: u32,
+    on_leaderboard: u32,
+    private_transactions: u32
+}
+
+#[get("/api/stats/customers")]
+pub async fn customers(state: Data<AppState>) -> Result<impl Responder, AppError> {
+    let sql = r#"
+        SELECT
+            COUNT(*) AS count,
+            SUM(on_leaderboard) AS on_leaderboard,
+            SUM(private_transactions) AS private_transactions
+        FROM User
+        "#;
+    let info: CustomerInfo = sqlx::query_as(sql).fetch_one(&state.db).await?;
+    
+    Ok(HttpResponse::Ok().json(info))
+}

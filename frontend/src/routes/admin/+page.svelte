@@ -2,7 +2,7 @@
   import type { PageProps } from "./$types.js";
 	import * as Card from "$lib/components/ui/card/index.js";
   let { data }: PageProps = $props();
-
+  
 </script>
 
 <div class="flex flex-1 flex-col">
@@ -45,28 +45,28 @@
       		<Card.Header>
       			<Card.Description>Godisskåpskunder</Card.Description>
       			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
-      				46
+      				{data.customerInfo?.count ?? "-"}
       			</Card.Title>
       		</Card.Header>
       		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
       			<div class="line-clamp-1 flex gap-2 font-medium">
-              Antalet registrerade på leaderboard
+              Antalet registrerade på topplistan
       			</div>
-      			<div class="text-muted-foreground">39</div>
+      			<div class="text-muted-foreground">{data.customerInfo?.on_leaderboard ?? "-"}</div>
       		</Card.Footer>
       	</Card.Root>
       	<Card.Root class="@container/card">
       		<Card.Header>
       			<Card.Description>Intäkter</Card.Description>
       			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
-      				13579kr
+      				{data.depositsInfo?.total ?? "-"}kr
       			</Card.Title>
       		</Card.Header>
       		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
       			<div class="line-clamp-1 flex gap-2 font-medium">
       				Medelinsättning
       			</div>
-      			<div class="text-muted-foreground">179kr</div>
+      			<div class="text-muted-foreground">{Math.round(data.depositsInfo?.average) ?? "-"}kr</div>
       		</Card.Footer>
       	</Card.Root>
       </div>

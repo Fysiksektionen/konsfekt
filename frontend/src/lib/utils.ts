@@ -116,7 +116,10 @@ export function updateSearchStore<T extends object>(store: SearchStore<T>, newDa
 
 export async function fetchJSON(fetch: svelteFetch, url: string) {
     const resp = await fetch(url);
-    if (!resp.ok) throw error(resp.status, resp.statusText);
+    if (!resp.ok) {
+        if (resp.status == 404) throw error(resp.status, url)
+        throw error(resp.status, resp.statusText);
+    }
     return resp.json();
 }
 

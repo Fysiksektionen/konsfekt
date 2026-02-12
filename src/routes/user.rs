@@ -9,7 +9,9 @@ struct GetUserResponse {
     name: Option<String>,
     email: String,
     balance: f32,
-    role: Role
+    role: Role,
+    on_leaderboard: bool,
+    private_transactions: bool
 }
 
 #[get("/api/get_user")]
@@ -21,7 +23,9 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
         name: user.name,
         email: user.email,
         balance: user.balance,
-        role: user.role
+        role: user.role,
+        on_leaderboard: user.on_leaderboard,
+        private_transactions: user.private_transactions
     };
     Ok(web::Json(user_response))
 }

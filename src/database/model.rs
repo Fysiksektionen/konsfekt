@@ -7,7 +7,9 @@ pub struct User {
     pub email: String,
     pub google_id: String,
     pub balance: f32,
-    pub role: Role
+    pub role: Role,
+    pub on_leaderboard: bool,
+    pub private_transactions: bool
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]

@@ -4,7 +4,9 @@ CREATE TABLE User (
     email TEXT NOT NULL,
     google_id TEXT UNIQUE,
     role TEXT NOT NULL CHECK(role IN ('admin', 'maintainer', 'bot', 'user')),
-    balance REAL NOT NULL DEFAULT 0
+    balance REAL NOT NULL DEFAULT 0,
+    on_leaderboard INTEGER NOT NULL CHECK(on_leaderboard IN (0, 1)),
+    private_transactions INTEGER NOT NULL CHECK(on_leaderboard IN (0, 1))
 );
 
 -- Session schema based on lucia-auth
