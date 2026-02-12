@@ -12,6 +12,8 @@
     let response = await backendPOST("/mark_sold_out", { id: Number(product.id) }, true);
     if (response.ok) {
       toast.success(product.name + " rapporterad som slutsåld.");
+    } else {
+      toast.error("Kunde inte rapportera slutsåld: " + response.statusText);
     }
     popupOpen = false;
   }

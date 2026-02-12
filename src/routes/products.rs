@@ -78,7 +78,7 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
 #[post("/api/mark_sold_out")]
 pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
     let mut product = get_product_from_id(&state.db, Some(params.id)).await?;
-
+    
     if product.stock.is_none() {
         return Err(AppError::ActixError(actix_web::error::ErrorConflict("Cannot mark product not for sale as sold out")));
     }

@@ -1,9 +1,10 @@
-import { getUser } from '$lib/utils';
+import { getProducts, getUser } from '$lib/utils';
 import type { LayoutLoad } from './$types';
 
 export const load: LayoutLoad = async ({ fetch }) => {
     return {
-        user: await getUser(fetch)
+        user: await getUser(fetch),
+        ...await getProducts(fetch, true)
     }
 };
 

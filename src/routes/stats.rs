@@ -1,5 +1,5 @@
 use actix_web::{HttpResponse, Responder, get, web::{self, Data}};
-use sqlx::{Database, Encode, FromRow, Type, query::QueryAs};
+use sqlx::{Database, Encode, Type, query::{QueryAs, QueryScalar}};
 
 use crate::{AppError, AppState};
 
@@ -10,42 +10,58 @@ struct TimeRange {
 }
 
 impl TimeRange {
-    fn get_where_query(&self) -> String {
+    fn as_predicate(&self, start_with_if_present: &str) -> String {
         match (self.start, self.end) {
-            (Some(_), Some(_)) => format!("WHERE st.datetime BETWEEN ? AND ?"),
-            (None, Some(_)) => format!("WHERE st.datetime < ?"),
-            (Some(_), None) => format!("WHERE st.datetime > ?"),
+            (Some(_), Some(_)) => format!("{}st.datetime BETWEEN ? AND ?", start_with_if_present),
+            (None, Some(_)) => format!("{}st.datetime < ?", start_with_if_present),
+            (Some(_), None) => format!("{}st.datetime > ?", start_with_if_present),
             (None, None) => String::new()
-        }
-    }
-
-    fn bind_to<'q, DB, O>(
-        &self,
-        query: QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>,
-    ) -> QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>
-    where
-        DB: Database,
-        O: for<'r> FromRow<'r, DB::Row>,
-        i64: Encode<'q, DB> + Type<DB>,
-
-    {        match (self.start, self.end) {
-            (Some(start), Some(end)) => query.bind(start).bind(end),
-            (None, Some(end)) => query.bind(end),
-            (Some(start), None) => query.bind(start),
-            (None, None) => query,
         }
     }
 }
 
-#[derive(sqlx::FromRow, serde::Serialize)]
+trait TimeRangeBindable {
+    fn bind_time_range(self, time_range: TimeRange) -> Self;
+}
+
+type QAs<'q, DB, O> = QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>;
+type QScalar<'q, DB, O> = QueryScalar<'q, DB, O, <DB as Database>::Arguments<'q>>;
+
+impl <'q, DB: Database, O>TimeRangeBindable for QAs<'q, DB, O> 
+    where i64: Encode<'q, DB> + Type<DB>,
+{
+    fn bind_time_range(self, time_range: TimeRange) -> Self {
+        match (time_range.start, time_range.end) {
+            (Some(start), Some(end)) => self.bind(start).bind(end),
+            (None, Some(end)) => self.bind(end),
+            (Some(start), None) => self.bind(start),
+            (None, None) => self,
+        }
+    }
+}
+
+impl <'q, DB: Database, O>TimeRangeBindable for QScalar<'q, DB, O> 
+    where i64: Encode<'q, DB> + Type<DB>,
+{
+    fn bind_time_range(self, time_range: TimeRange) -> Self {
+        match (time_range.start, time_range.end) {
+            (Some(start), Some(end)) => self.bind(start).bind(end),
+            (None, Some(end)) => self.bind(end),
+            (Some(start), None) => self.bind(start),
+            (None, None) => self,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow, serde::Serialize, Debug)]
 struct BestSellingProduct {
     id: u32,
     name: String,
     total_sold: u32,
 }
 
-#[get("/api/stats/get_best_selling_product")]
-pub async fn get_best_selling_product(state: Data<AppState>, query: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+#[get("/api/stats/best_selling_product")]
+pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
     let sql = format!(r#"
         SELECT
             p.id,
@@ -58,9 +74,71 @@ pub async fn get_best_selling_product(state: Data<AppState>, query: web::Query<T
         GROUP BY p.id, p.name
         ORDER BY total_sold DESC
         LIMIT 1
-        "#, query.get_where_query());
-    let query = query.bind_to(sqlx::query_as(&sql));
-    let product: Option<BestSellingProduct> = query.fetch_optional(&state.db).await?;
+        "#, time_range.as_predicate("WHERE "));
+    
+    let product: Option<BestSellingProduct> = sqlx::query_as(&sql)
+        .bind_time_range(time_range.0).fetch_optional(&state.db).await?;
 
     Ok(HttpResponse::Ok().json(product))
+}
+
+#[derive(sqlx::FromRow, serde::Serialize, Debug)]
+struct ProductTransactionInfo {
+    count: u32,
+    total: f32,
+}
+
+#[get("/api/stats/product_transactions")]
+pub async fn product_transactions(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+    let sql = format!(r#"
+        SELECT
+            COUNT(*) AS count,
+            -COALESCE(SUM(amount), 0.0) AS total
+        FROM StoreTransaction
+        WHERE amount <= 0 {}
+        "#, time_range.as_predicate("AND "));
+    let transactions: ProductTransactionInfo = sqlx::query_as(&sql).bind_time_range(time_range.0).fetch_one(&state.db).await?;
+    
+    Ok(HttpResponse::Ok().json(transactions))
+}
+
+#[derive(sqlx::FromRow, serde::Serialize, Debug)]
+struct DepositsInfo {
+    total: f32,
+    average: f32,
+}
+
+#[get("/api/stats/deposits")]
+pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+    let sql = format!(r#"
+        SELECT
+            COALESCE(SUM(st.amount), 0.0) AS total,
+            COALESCE(AVG(st.amount), 0.0) AS average
+        FROM StoreTransaction st
+        WHERE st.amount > 0 {}
+        "#, time_range.as_predicate("AND "));
+    let info: DepositsInfo = sqlx::query_as(&sql).bind_time_range(time_range.0).fetch_one(&state.db).await?;
+
+    Ok(HttpResponse::Ok().json(info))
+}
+
+#[derive(sqlx::FromRow, serde::Serialize, Debug)]
+struct CustomerInfo {
+    count: u32,
+    on_leaderboard: u32,
+    private_transactions: u32
+}
+
+#[get("/api/stats/customers")]
+pub async fn customers(state: Data<AppState>) -> Result<impl Responder, AppError> {
+    let sql = r#"
+        SELECT
+            COUNT(*) AS count,
+            SUM(on_leaderboard) AS on_leaderboard,
+            SUM(private_transactions) AS private_transactions
+        FROM User
+        "#;
+    let info: CustomerInfo = sqlx::query_as(sql).fetch_one(&state.db).await?;
+    
+    Ok(HttpResponse::Ok().json(info))
 }

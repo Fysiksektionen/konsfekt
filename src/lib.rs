@@ -145,36 +145,33 @@ pub enum AppError {
     BadRequest(String),
 
     SessionError(String),
-
-    
-}
-
-impl ResponseError for AppError {
-    fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
-        let (status, message) = match &self {
-            Self::ActixError(e) => return e.error_response(),
-            Self::ClientError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("ClientError: {e}")),
-            Self::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("DatabaseError: {e}")),
-            Self::GenericError(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("GenericError: {e}")),
-            Self::SessionError(e) => (StatusCode:: INTERNAL_SERVER_ERROR, format!("SessionError: {e}")),
-            Self::BadRequest(e) => (StatusCode::BAD_REQUEST, format!("BadRequest: {e}")),
-        };
-        println!("{status}, {message}");
-
-        HttpResponse::build(status).body(message)
-    }
 }
 
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppError::ActixError(err) => write!(f, "{}", err),
-            AppError::ClientError(err) => write!(f, "Client error: {}", err),
-            AppError::DatabaseError(err) => write!(f, "Database error: {}", err),
-            AppError::GenericError(err) => write!(f, "Generic error: {}", err),
-            AppError::SessionError(err) => write!(f, "Session error: {}", err),
-            AppError::BadRequest(err) => write!(f, "Bad Request error: {}", err),
+            AppError::ActixError(err) => write!(f, "{err}"),
+            AppError::ClientError(err) => write!(f, "Client error: {err}"),
+            AppError::DatabaseError(err) => write!(f, "Database error: {err}"),
+            AppError::GenericError(err) => write!(f, "Generic error: {err}"),
+            AppError::SessionError(err) => write!(f, "Session error: {err}"),
+            AppError::BadRequest(err) => write!(f, "Bad request: {err}"),
         }
+    }
+}
+
+impl ResponseError for AppError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            Self::ActixError(e) => e.as_response_error().status_code(),
+            Self::BadRequest(_) => StatusCode::BAD_REQUEST, // Maybe just use actix bad request
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
+        log::error!("{self}");
+        HttpResponse::build(self.status_code()).body(self.to_string())
     }
 }
 

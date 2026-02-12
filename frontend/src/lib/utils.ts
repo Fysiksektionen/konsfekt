@@ -32,7 +32,7 @@ export async function getUser(fetch: svelteFetch) {
         redirect(302, "/login");
     }
     if (!response.ok) {
-        throw error(response.status)
+        throw error(response.status, response.statusText)
     }
     return await response.json()
 }
@@ -46,6 +46,9 @@ export async function getTransactions(fetch: svelteFetch, userId?: number) {
        endpoint += `?user_id=${userId}`;
     }
     let transactionResponse = await fetch(endpoint);
+    if (!transactionResponse.ok) {
+        throw error(transactionResponse.status, transactionResponse.statusText);
+    }
     return await transactionResponse.json();
 }
 
@@ -54,6 +57,9 @@ export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
         return { products: [] }
     }
     let response = await fetch('/api/get_products');
+    if (!response.ok) {
+        throw error(response.status, response.statusText);
+    }
     let products = await response.json();
     
     // Filter cart so removed products dont appear
@@ -106,6 +112,15 @@ export function searchData<T extends object>(store: SearchStore<T>, searchTerm: 
 export function updateSearchStore<T extends object>(store: SearchStore<T>, newData: T[]) {
     store.data = newData;
     store.filtered = newData;
+}
+
+export async function fetchJSON(fetch: svelteFetch, url: string) {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+        if (resp.status == 404) throw error(resp.status, url)
+        throw error(resp.status, resp.statusText);
+    }
+    return resp.json();
 }
 
 export async function backendPOST(endpoint: string, payload: any, json: boolean) {

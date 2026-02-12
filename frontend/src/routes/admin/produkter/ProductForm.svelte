@@ -18,6 +18,7 @@
     import Switch from "$lib/components/ui/switch/switch.svelte";
     import ProductWarnings from "./ProductWarnings.svelte";
     import SafetyButton from "$lib/components/SafetyButton.svelte";
+    import { toast } from "svelte-sonner";
  
  let { validatedForm, onFormSubmit, isCreateForm }: { 
    validatedForm: SuperValidated<Infer<ProductFormSchema>>;
@@ -50,6 +51,11 @@
       response = await backendPOST("/update_product", formData, false);
     }
 
+    if (!response.ok) {
+      toast.error("Kunde inte spara produkt: " + response.statusText);
+      return;
+    }
+
     let products = await response.json();
 
     onFormSubmit(products, product.id);
@@ -58,9 +64,13 @@
 
  async function removeProduct() {
    let id = validatedForm.data.id;
-   let response = await backendPOST("/delete_product", { id }, true)
+   let response = await backendPOST("/delete_product", { id }, true);
+   if (!response.ok) {
+     toast.error("Kunde inte ta bort produkt: " + response.statusText);
+     return;
+   }
    let products = await response.json();
-   onFormSubmit(products, id)
+   onFormSubmit(products, id);
  }
  
  const { form: formData, enhance } = form;

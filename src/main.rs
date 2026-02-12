@@ -6,18 +6,30 @@ use actix_web::{middleware, web::Data, App, HttpServer};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
-
     let env = EnvironmentVariables::new();
+
+    let mut builder = env_logger::Builder::from_default_env();
+
+    builder.filter_module("konsfekt", log::LevelFilter::Error);
+    builder.filter_module("konsfekt", log::LevelFilter::Warn);
+    builder.filter_module("konsfekt", log::LevelFilter::Info);
+    builder.filter_module("konsfekt", log::LevelFilter::Trace);
+
+    if env.is_debug {
+        builder.filter_module("konsfekt", log::LevelFilter::Debug);
+    }
+
+    builder.init();
 
     let pool = database::init_database()
         .await
         .expect("Could not initialize database");
     
     if env.static_frontend {
-        println!("Web server running at {}", env.site_domain);
+        log::info!("Web server running at {}", env.site_domain);
     } else {
-        print!("Backend running at {}\nFrontend needs to be served separately\n", env.site_domain)
+        log::info!("Backend running at {}", env.site_domain);
+        log::info!("Frontend needs to be served separately")
     }
 
     let env_clone = env.clone(); // To be used in closure
@@ -62,7 +74,10 @@ async fn main() -> std::io::Result<()> {
             .service(routes::products::mark_sold_out)
 
             // Stats API
-            .service(routes::stats::get_best_selling_product)
+            .service(routes::stats::best_selling_product)
+            .service(routes::stats::product_transactions)
+            .service(routes::stats::customers)
+            .service(routes::stats::deposits)
 
             // Uploads
             .service(scope("/uploads")

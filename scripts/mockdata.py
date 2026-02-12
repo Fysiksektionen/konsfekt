@@ -75,14 +75,16 @@ def add_users(conn, cur, count):
     with open(USER_METADATA_PATH, "r") as file:
         names = json.load(file)
         random.shuffle(names)
-
+     
     for name in names[:count]:
-        cur.execute("INSERT INTO User (name, email, google_id, role, balance) VALUES (:name, :email, :google_id, :role, :balance)", {
+        cur.execute("INSERT INTO User (name, email, google_id, role, balance, on_leaderboard, private_transactions) VALUES (:name, :email, :google_id, :role, :balance, :on_leaderboard, :private_transactions)", {
             "name": name,
             "email": name.lower() + "@fysiksektionen.se",
             "google_id": hash(name + str(time.time())),
             "role": "user",
             "balance": 0,
+            "on_leaderboard": random.choice([0,1]),
+            "private_transactions": random.choice([0,1])
         })
         conn.commit()
         yield
