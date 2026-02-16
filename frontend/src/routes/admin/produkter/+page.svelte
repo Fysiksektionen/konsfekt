@@ -78,7 +78,7 @@
   </Sheet.Content>
 </Sheet.Root>
 
-<div class="grid grid-cols-4 gap-3 mt-3">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
   {#each searchStore.filtered as product}
     <button onclick={() => openUpdateProductSheet(product)} class="flex flex-col p-2 bg-card rounded-md border">
       <div class="flex justify-between">
