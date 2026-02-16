@@ -31,14 +31,14 @@
       		<Card.Header>
       			<Card.Description>Omsättning</Card.Description>
       			<Card.Title class="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
-              {data.productTransactions?.total ?? "-"}kr
+              {data.purchasesInfo?.total ?? "-"}kr
       			</Card.Title>
       		</Card.Header>
       		<Card.Footer class="flex-col items-start gap-1.5 text-sm">
       			<div class="line-clamp-1 flex gap-2 font-medium">
               Totala antalet köp
       			</div>
-      			<div class="text-muted-foreground">{data.productTransactions?.count ?? "-"}</div>
+      			<div class="text-muted-foreground">{data.purchasesInfo?.count ?? "-"}</div>
       		</Card.Footer>
       	</Card.Root>
       	<Card.Root class="@container/card">
