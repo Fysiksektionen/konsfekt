@@ -1,7 +1,8 @@
 import type { ColumnDef } from "@tanstack/table-core";
-import { renderSnippet } from "../ui/data-table";
+import { renderComponent, renderSnippet } from "../ui/data-table";
 import { createRawSnippet } from "svelte";
 import { getDateString } from "$lib/utils";
+import TransactionTableDateSortingButton from "./TransactionTableDateSortingButton.svelte";
  
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
@@ -76,8 +77,11 @@ export const columns: ColumnDef<Transaction>[] = [
     },
  },
  {
-  accessorKey: "date",
-  header: "Datum",
+  accessorKey: "datetime",
+  header: ({ column}) =>
+    renderComponent(TransactionTableDateSortingButton, {
+        onclick: column.getToggleSortingHandler()
+  }),
   cell: ({ row }) => {
       const typeCellSnippet = createRawSnippet<[{ datetime: string }]>(
         (getDatetime) => {

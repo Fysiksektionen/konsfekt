@@ -3,7 +3,7 @@
   import FlagIcon from "@lucide/svelte/icons/flag";
   import Button from "$lib/components/ui/button/button.svelte";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
-    import { backendPOST } from "$lib/utils";
+    import { backendPOST, undoTransaction } from "$lib/utils";
     import { toast } from "svelte-sonner";
     import { goto, invalidateAll } from "$app/navigation";
 
@@ -27,23 +27,13 @@
       toast.success(product.name + " köpt.", {
           action: {
             label: "Ångra",
-            onClick: () => undoTransaction(transactionID)
+            onClick: () => undoTransaction(transactionID.transaction_id)
           }
         });
     } else if (response.status == 402) {
       toast.error("Du har inte tillräckligt saldo");
     } else {
       toast.error("Kunde inte köpa produkten: " + response.statusText);
-    }
-  }
-
-  async function undoTransaction(transactionID: { transaction_id: number }) {
-    let response = await backendPOST("/undo_transaction", transactionID, true);
-    if (response.ok) {
-      invalidateAll();
-      toast.success("Köp ångrat");
-    } else {
-      toast.error("kunde inte ångra köp: " + response.statusText);
     }
   }
 

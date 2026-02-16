@@ -25,7 +25,7 @@
     DataTableProps<TData, TValue> & {onclick: (currTransaction: Transaction) => void} = $props();
  
  let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
- let sorting = $state<SortingState>([]);
+ let sorting = $state<SortingState>([{ id: "datetime", desc: true }]);
  let columnFilters = $state<ColumnFiltersState>([]);
  let columnVisibility = $state<VisibilityState>({search_term: false});
  
@@ -37,6 +37,7 @@
   getCoreRowModel: getCoreRowModel(),
   getPaginationRowModel: getPaginationRowModel(),
   getSortedRowModel: getSortedRowModel(),
+  enableSortingRemoval: false,
   getFilteredRowModel: getFilteredRowModel(),
   onPaginationChange: (updater) => {
    if (typeof updater === "function") {
@@ -85,7 +86,7 @@
 </script>
 
 <div class="w-full">
-  <div class="flex md:flex-row flex-col-reverse items-center py-4 gap-3">
+  <div class="flex justify-between md:flex-row flex-col items-center py-4 gap-3">
     <Input
       placeholder="Sök efter transaktion..."
       value={(table.getColumn("search_term")?.getFilterValue() as string) ?? ""}
@@ -96,7 +97,28 @@
       }}
       class="max-w-sm"
     />
+    {@render paginationButtons()}
   </div>
+  {#snippet paginationButtons()}
+    <div class="flex w-full md:w-auto justify-between items-center space-x-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => table.previousPage()}
+          disabled={!table.getCanPreviousPage()}
+        >
+          Föregående
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => table.nextPage()}
+          disabled={!table.getCanNextPage()}
+        >
+          Nästa
+        </Button>
+    </div>
+  {/snippet}
   <div class="rounded-md border">
     <Table.Root>
       <Table.Header>
@@ -136,23 +158,5 @@
         {/each}
       </Table.Body>
     </Table.Root>
-  </div>
-  <div class="flex items-center justify-between md:justify-center space-x-2 pt-4">
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => table.previousPage()}
-        disabled={!table.getCanPreviousPage()}
-      >
-        Previous
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => table.nextPage()}
-        disabled={!table.getCanNextPage()}
-      >
-        Next
-      </Button>
   </div>
 </div>

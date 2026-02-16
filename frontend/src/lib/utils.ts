@@ -3,6 +3,8 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { cart } from "./storage.svelte";
 import { parseAbsoluteToLocal } from "@internationalized/date";
+import { invalidateAll } from "$app/navigation";
+import { toast } from "svelte-sonner";
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -52,6 +54,17 @@ export async function getTransactions(fetch: svelteFetch, userId?: number) {
     return await transactionResponse.json();
 }
 
+export async function undoTransaction(transactionID: number) {
+    let response = await backendPOST("/undo_transaction", { transaction_id: transactionID }, true);
+    if (response.ok) {
+      invalidateAll();
+      toast.success("Köp ångrat");
+    } else {
+      toast.error("kunde inte ångra köp: " + response.statusText);
+    }
+  }
+
+
 export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     if (import.meta.env.SSR) {
         return { products: [] }
@@ -82,6 +95,10 @@ export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
 
 export function getDateString(dbDateString: string) {
   return parseAbsoluteToLocal(dbDateString).toDate().toLocaleDateString("sv-SE");
+}
+
+export function getSeconds(dbDateString: string) {
+    return Math.floor(new Date(dbDateString).getTime() / 1000);
 }
 
 type SearchStore<T extends object> = {
