@@ -1,4 +1,6 @@
-use crate::{Role, model::ProductFlags};
+use uuid::Uuid;
+
+use crate::{Role, model::ProductFlags, routes::payment::swish};
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct User {
@@ -39,4 +41,15 @@ pub struct TransactionItemRow {
     pub quantity: u32,
     pub name: String,
     pub price: f32,
+}
+
+
+
+#[derive(sqlx::FromRow)]
+pub struct SwishPaymentRow {
+    pub id: Uuid,
+    pub user: u32,
+    pub status: swish::Status,
+    pub token: String,
+    pub location: String,
 }

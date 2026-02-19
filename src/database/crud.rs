@@ -1,7 +1,7 @@
 use sqlx::{Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
-use crate::database::model::{TransactionItemRow, TransactionRow};
+use crate::database::model::{SwishPaymentRow, TransactionItemRow, TransactionRow};
 use crate::model::{PendingTransaction, Transaction};
 use crate::{AppError, Role};
 
@@ -145,7 +145,7 @@ pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<
 pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<User>, AppError> {
     let users: Vec<User> = sqlx::query_as(
         r#"
-        SELECT id, name, email, google_id, role, balance 
+        SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
         FROM User 
         WHERE role = ?
         "#).bind(role).fetch_all(pool).await?;
@@ -322,4 +322,25 @@ pub async fn get_transactions(pool: &SqlitePool, user_id: Option<u32>) -> Result
         transactions.push(transaction);
     }
     Ok(transactions)
+}
+
+//
+//          Payement
+//
+
+pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRow) -> Result<(), AppError> {
+
+    sqlx::query(
+        r#"
+        INSERT INTO SwishPayment (id, user, status, token, location)
+        VALUES (?, ?, ?, ?, ?, ?)
+        "#
+    ).bind(row.id)
+    .bind(row.user)
+    .bind(row.status)
+    .bind(row.token)
+    .bind(row.location)
+    .execute(pool).await?;
+
+    Ok(())
 }
