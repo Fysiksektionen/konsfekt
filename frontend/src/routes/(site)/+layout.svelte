@@ -68,6 +68,6 @@
     </Button>
   </div>
 </nav>
-<div class="w-4/5 pt-20">
+<div class="w-4/5 pt-20 pb-20">
   {@render children?.()}
 </div>

@@ -83,13 +83,13 @@ pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<
 }
 
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
-struct ProductTransactionInfo {
+struct PurchasesInfo {
     count: u32,
     total: f32,
 }
 
-#[get("/api/stats/product_transactions")]
-pub async fn product_transactions(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+#[get("/api/stats/purchases")]
+pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
     let sql = format!(r#"
         SELECT
             COUNT(*) AS count,
@@ -97,7 +97,7 @@ pub async fn product_transactions(state: Data<AppState>, time_range: web::Query<
         FROM StoreTransaction
         WHERE amount <= 0 {}
         "#, time_range.as_predicate("AND "));
-    let transactions: ProductTransactionInfo = sqlx::query_as(&sql).bind_time_range(time_range.0).fetch_one(&state.db).await?;
+    let transactions: PurchasesInfo = sqlx::query_as(&sql).bind_time_range(time_range.0).fetch_one(&state.db).await?;
     
     Ok(HttpResponse::Ok().json(transactions))
 }

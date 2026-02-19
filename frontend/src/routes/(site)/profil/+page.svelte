@@ -8,10 +8,11 @@
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
     import { Separator } from "$lib/components/ui/separator/index.js";
     import * as Dialog from "$lib/components/ui/dialog/index.js";
-    import { backendPOST, getDateString } from "$lib/utils";
+    import { backendPOST, getDateString, getSeconds, undoTransaction } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { Badge } from '$lib/components/ui/badge';
     import { invalidateAll } from '$app/navigation';
+    import { onMount } from 'svelte';
 
 	let { data }: PageProps = $props();
   
@@ -23,7 +24,6 @@
 
  let currentTransaction: Transaction = $state({ amount: 0, id: 0, search_term: "", datetime: "", items: [] });
  let transactionViewOpen = $state(false);
- let showProductIds = $state(false);
 
  function onTransactionClicked(transaction: Transaction) {
    currentTransaction = transaction;
@@ -36,6 +36,20 @@
      invalidateAll();
    }
  }
+
+ let currentTime = $state(Math.floor(Date.now()/1000));
+
+ let timeSincePurchace = $derived(currentTime - getSeconds(currentTransaction?.datetime));
+
+ onMount(() => {
+		const interval = setInterval(() => {
+			currentTime = Math.floor(Date.now()/1000);
+		}, 1000);
+
+		return () => {
+			clearInterval(interval);
+		};
+	});
 </script>
 
 <div class="w-full md:pl-10 md:pr-10 lg:pl-30 lg:pr-30 gap-3 flex flex-col items-start">
@@ -98,7 +112,6 @@
     <Button href="/profil/radera-konto" variant="link" class="text-foreground">
       Jag vill ta bort mitt konto
     </Button> 
-
   </div>
 
   <div class="flex flex-col w-full gap-2">
@@ -127,16 +140,10 @@
         <Separator/>
         {#if currentTransaction?.amount <= 0}
           <div class="flex flex-col mt-1">
-            <div class="flex gap-2">
-              <Switch bind:checked={showProductIds} id="show-product-ids" />
-              <p>Visa produkt-ID</p>
-            </div>
             {#each currentTransaction?.items as item}
               <div class="flex gap-2">
                 <p>{item.quantity}x {item.name} ({item.quantity * item.price}kr)</p>
-                {#if showProductIds}
-                  <Badge variant="outline">ID{item.product_id}</Badge>
-                {/if}
+                <Badge variant="outline">ID{item.product_id}</Badge>
               </div>
             {/each}
           </div>
@@ -144,6 +151,17 @@
         <span class="text-2xl font-mono font-semibold">{currentTransaction?.amount}kr</span> 
       </Dialog.Description>
     </Dialog.Header>
+    {#key currentTime}
+      {#if timeSincePurchace < 60}
+        <Button onclick={() => {
+          undoTransaction(currentTransaction?.id)
+          transactionViewOpen = false;
+          invalidateAll();
+        }}>
+          Ångra köp ({60 - timeSincePurchace})
+        </Button>
+      {/if}
+    {/key}
   </Dialog.Content>
 </Dialog.Root>
  

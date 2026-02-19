@@ -13,7 +13,7 @@
 	<AppSidebar variant="inset" user={data.user}/>
 	<Sidebar.Inset>
 		<SiteHeader />
-    <div class="p-4">
+    <div class="p-4 overflow-x-hidden">
       {@render children?.()}
     </div>
 	</Sidebar.Inset>

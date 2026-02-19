@@ -8,7 +8,6 @@
     import { superValidate } from 'sveltekit-superforms';
     import { zod4 } from 'sveltekit-superforms/adapters';
     import { productFormSchema } from './product-schema';
-    import { onMount } from 'svelte';
     import ProductWarnings from './ProductWarnings.svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -18,7 +17,7 @@
   $effect(() => {
     searchData(searchStore, searchTerm);
   });
-  let addProductSheetOpen = $state(true);
+  let addProductSheetOpen = $state(false);
 
   let updateProductForm = $state(data.form);
   let updateProductSheetOpen = $state(false);
@@ -43,12 +42,9 @@
   }
   
   async function openUpdateProductSheet(product: any) {
-    updateProductForm = await superValidate(product, zod4(productFormSchema));
+    updateProductForm = await superValidate(product, zod4(productFormSchema), { id: 'update' });
     updateProductSheetOpen = true;
   }
-  onMount(() => {
-    addProductSheetOpen = false;
-  })
 </script>
 
 
@@ -66,7 +62,7 @@
   </Sheet.Content>
 </Sheet.Root>
 
-<Sheet.Root bind:open={updateProductSheetOpen}> 
+<Sheet.Root bind:open={updateProductSheetOpen}>
   <Sheet.Content>
     <Sheet.Header class="h-full">
       <Sheet.Title>
@@ -82,7 +78,7 @@
   </Sheet.Content>
 </Sheet.Root>
 
-<div class="grid grid-cols-4 gap-3 mt-3">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
   {#each searchStore.filtered as product}
     <button onclick={() => openUpdateProductSheet(product)} class="flex flex-col p-2 bg-card rounded-md border">
       <div class="flex justify-between">
