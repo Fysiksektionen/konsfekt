@@ -39,29 +39,51 @@ export async function getUser(fetch: svelteFetch) {
     return await response.json()
 }
 
-// #[derive(Deserialize)]
-// pub struct TransactionQuery {
-//     pub user_ids: Vec<u32>,
-//     pub product_ids: Vec<u32>,
-//     pub time_range: Option<stats::TimeRange>,
-//     pub search_term: Option<String>,
-//     pub cursor: Option<i64>, // UNIX timestamp
-//     pub limit: u32,
-// }
-//
-export type TransactionQuery = {};
+type TimeRange = {
+    start?: number;
+    end?: number;
+}
 
-// Todo implement default TransactionQuery
+export type TransactionQuery = {
+    user_ids: number[];
+    product_ids: number[];
+    time_range?: TimeRange;
+    search_term?: string;
+    cursor?: number;
+    limit: number;
+};
+
+export function defaultTransactionQuery(): TransactionQuery {
+    return {
+        user_ids: [],
+        product_ids: [],
+        limit: 20,
+    };
+}
+
+export function transactionQueryFromUserId(ownUserId: number): TransactionQuery {
+    return {
+        user_ids: [ownUserId],
+        product_ids: [],
+        limit: 20,
+    };
+}
 
 export async function getTransactions(fetch: svelteFetch, query?: TransactionQuery) {
     if (import.meta.env.SSR) {
         return [];
     }
-    let endpoint = "/api/get_transactions";
-    if (userId != null) {
-       endpoint += `?user_id=${userId}`;
+    if (query == null) {
+        query = defaultTransactionQuery();
     }
-    let transactionResponse = await fetch(endpoint);
+    let options: RequestInit = {
+        method: "GET",
+        credentials: "include",
+        body: JSON.stringify(query),
+        headers: { "Content-Type": "application/json" }
+    };
+    let endpoint = "/api/get_transactions";
+    let transactionResponse = await fetch(endpoint, options);
     if (!transactionResponse.ok) {
         throw error(transactionResponse.status, transactionResponse.statusText);
     }
