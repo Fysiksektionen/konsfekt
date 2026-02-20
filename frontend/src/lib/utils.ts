@@ -39,7 +39,21 @@ export async function getUser(fetch: svelteFetch) {
     return await response.json()
 }
 
-export async function getTransactions(fetch: svelteFetch, userId?: number) {
+// #[derive(Deserialize)]
+// pub struct TransactionQuery {
+//     pub user_ids: Vec<u32>,
+//     pub product_ids: Vec<u32>,
+//     pub time_range: Option<stats::TimeRange>,
+//     pub search_term: Option<String>,
+//     pub cursor: Option<i64>, // UNIX timestamp
+//     pub limit: u32,
+// }
+//
+export type TransactionQuery = {};
+
+// Todo implement default TransactionQuery
+
+export async function getTransactions(fetch: svelteFetch, query?: TransactionQuery) {
     if (import.meta.env.SSR) {
         return [];
     }

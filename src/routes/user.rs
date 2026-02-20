@@ -1,7 +1,7 @@
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 
-use crate::{AppError, AppState, Role, database::{crud, model::User}, routes::user_from_cookie};
+use crate::{AppError, AppState, Role, database::{crud, model::User}, model::TransactionQuery, routes::{stats, user_from_cookie}};
 
 #[derive(Serialize)]
 struct GetUserResponse {
@@ -118,20 +118,16 @@ pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::J
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct GetTransactionQuery {
-    user_id: Option<u32>,
-}
-
-
 #[get("/api/get_transactions")]
-pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Query<GetTransactionQuery>) -> Result<impl Responder, AppError> {
+pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Json<TransactionQuery>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    if user.role == Role::User &&
-        (query.user_id.is_some_and(|id| id != user.id) || query.user_id.is_none()) {
+
+    let other_users_requested = query.user_ids.iter().any(|id| *id != user.id) || query.user_ids.is_empty();
+    if user.role == Role::User && other_users_requested {
         return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Cannot get other user's transactions")));
     }
-    let transactions = crud::get_transactions(&state.db, query.user_id).await?;
+
+    let transactions = crud::get_transactions(&state.db, query.0).await?;
 
     Ok(HttpResponse::Ok().json(transactions))
 }

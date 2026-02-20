@@ -1,8 +1,9 @@
-use sqlx::{Result, SqlitePool};
+use sqlx::{QueryBuilder, Result, SqlitePool, query};
 use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{TransactionItemRow, TransactionRow};
-use crate::model::{PendingTransaction, Transaction};
+use crate::model::{PendingTransaction, Transaction, TransactionQuery};
+use crate::routes::stats::TimeRangeBindable;
 use crate::{AppError, Role};
 
 use super::model::User;
@@ -314,23 +315,59 @@ pub async fn get_single_transaction(pool: &SqlitePool, transaction_id: u32) -> R
     Ok(transaction)
 }
 
-pub async fn get_transactions(pool: &SqlitePool, user_id: Option<u32>) -> Result<Vec<Transaction>, AppError> {
-    let sql = format!("
+pub async fn get_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<Transaction>, AppError> {
+    let mut builder = QueryBuilder::new(r#"
         SELECT id, user, amount, datetime
-        FROM StoreTransaction
-        {}
-        ",
-        match user_id {
-            Some(_) => "WHERE user = ?",
-            None => ""
-        });
-    let mut query = sqlx::query_as(&sql);
+        FROM StoreTransaction st
+        WHERE 1=1
+        "#);
+    
+    // OR users
+    if !query.user_ids.is_empty() {
+        builder.push(" AND (");
 
-    if let Some(id) = user_id {
-        query = query.bind(id);
+        let mut or_sep = builder.separated(" OR ");
+        for id in query.user_ids {
+            or_sep.push("user = ").push_bind_unseparated(id);
+        }
+        drop(or_sep);
+
+        builder.push(")");
     }
 
-    let transaction_rows: Vec<TransactionRow> = query.fetch_all(pool).await?;
+    // OR products
+    if !query.product_ids.is_empty() {
+        builder.push(" AND EXISTS (SELECT 1 FROM TransactionItem item WHERE (");
+
+        let mut or_sep = builder.separated(" OR ");
+        for id in query.product_ids {
+            or_sep.push("item.product = ").push_bind_unseparated(id);
+        }
+        drop(or_sep);
+
+        builder.push(") AND item.transaction_id = st.id)");
+    }
+
+    // SEARCH by fts table
+    if let Some(search_term) = query.search_term {
+        builder.push(" AND EXISTS (SELECT 1 FROM TransactionFts WHERE TransactionFts MATCH ").push_bind(search_term);
+        builder.push(" AND TransactionFts.transaction_id = st.id)");
+    }
+
+    // BETWEEN time range
+    if let Some(time_range) = query.time_range {
+        builder.push(time_range.as_predicate(" AND "));
+        builder = builder.bind_time_range(time_range);
+    }
+    
+    // CURSOR
+    if let Some(cursor) = query.cursor {
+        builder.push(" AND datetime < ").push_bind(cursor);
+    }
+
+    builder.push(" ORDER BY datetime DESC LIMIT ").push_bind(query.limit);
+    
+    let transaction_rows: Vec<TransactionRow> = builder.build_query_as().fetch_all(pool).await?;
 
     let mut transactions = Vec::new();
     for row in transaction_rows {
