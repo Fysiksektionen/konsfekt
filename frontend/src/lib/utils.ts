@@ -50,6 +50,7 @@ export type TransactionQuery = {
     search_term?: string;
     cursor?: number;
     limit: number;
+    descending: boolean;
 };
 
 export function defaultTransactionQuery(): TransactionQuery {
@@ -60,6 +61,7 @@ export function defaultTransactionQuery(): TransactionQuery {
             start: Math.round(Date.now() / 1000 - 60 * 60 * 24 * 30),
         },
         limit: 20,
+        descending: true,
     };
 }
 
@@ -68,6 +70,7 @@ export function transactionQueryFromUserId(ownUserId: number): TransactionQuery 
         user_ids: [ownUserId],
         product_ids: [],
         limit: 20,
+        descending: true,
     };
 }
 
