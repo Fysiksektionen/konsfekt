@@ -1,18 +1,18 @@
-use sqlx::{Result, SqlitePool};
+use sqlx::{QueryBuilder, Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{SwishPaymentRow, TransactionItemRow, TransactionRow};
-use crate::model::{PendingTransaction, Transaction};
+use crate::model::{PendingTransaction, TransactionDetail, TransactionQuery, TransactionSummary};
 use crate::{AppError, Role};
 
-use super::model::User;
+use super::model::UserRow;
 use super::model::ProductRow;
 
 //
 //          User
 //
 
-pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<User, AppError> {
+pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<UserRow, AppError> {
     let user_table_has_rows: bool = sqlx::query_scalar(r#"
         SELECT EXISTS(SELECT 1 FROM User)"#).fetch_one(pool).await?;
     
@@ -25,7 +25,7 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
         "#).bind(name).bind(email).bind(google_id).bind(&role).fetch_one(pool)
     .await?;
 
-    Ok(User { 
+    Ok(UserRow { 
         id, 
         name: name.map(str::to_owned), 
         email: email.to_string(), 
@@ -37,8 +37,8 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
     })
 }
 
-pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<User, AppError> {
-    let user: User = sqlx::query_as(
+pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<UserRow, AppError> {
+    let user: UserRow = sqlx::query_as(
         r#"
         SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
         FROM User 
@@ -47,7 +47,7 @@ pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option
     Ok(user)
 }
 
-pub async fn update_user(pool: &SqlitePool, user: User) -> Result<(), AppError> {
+pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), AppError> {
     sqlx::query(
         r#"
         UPDATE User SET name = ?, role = ?, balance = ?  
@@ -142,8 +142,8 @@ pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<
     Ok(())
 }
 
-pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<User>, AppError> {
-    let users: Vec<User> = sqlx::query_as(
+pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<UserRow>, AppError> {
+    let users: Vec<UserRow> = sqlx::query_as(
         r#"
         SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
         FROM User 
@@ -304,45 +304,107 @@ pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Resul
     Ok(())
 }
 
-pub async fn get_single_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, AppError> {
+pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, AppError> {
     let transaction: TransactionRow = sqlx::query_as(r#"
         SELECT id, user, amount, datetime
         FROM StoreTransaction
         WHERE id = ?
         "#).bind(transaction_id).fetch_one(pool).await?;
-
+    
     Ok(transaction)
 }
 
-pub async fn get_transactions(pool: &SqlitePool, user_id: Option<u32>) -> Result<Vec<Transaction>, AppError> {
-    let sql = format!("
-        SELECT id, user, amount, datetime
-        FROM StoreTransaction
-        {}
-        ",
-        match user_id {
-            Some(_) => "WHERE user = ?",
-            None => ""
-        });
-    let mut query = sqlx::query_as(&sql);
+pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, user: UserRow) -> Result<TransactionDetail, AppError> {
+    let transaction = get_transaction(pool, transaction_id).await?;
 
-    if let Some(id) = user_id {
-        query = query.bind(id);
+    let mut detailed_transaction = TransactionDetail::create(transaction, user);
+
+    let items: Vec<TransactionItemRow> = sqlx::query_as(r#"
+        SELECT id, transaction_id, product, quantity, name, price
+        FROM TransactionItem
+        WHERE transaction_id = ?
+        "#).bind(transaction_id).fetch_all(pool).await?;
+
+    detailed_transaction.add_items(items);
+
+    Ok(detailed_transaction)
+}
+
+pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, AppError> {
+    let mut builder = QueryBuilder::new(r#"
+        SELECT st.id, u.email AS user_email, st.amount, st.datetime
+        FROM StoreTransaction st
+        JOIN User u ON u.id = st.user
+        WHERE 1=1
+        "#);
+    
+    // OR users
+    if !query.user_ids.is_empty() {
+        builder.push(" AND st.user IN (");
+
+        let mut sep = builder.separated(", ");
+        for id in query.user_ids {
+            sep.push_bind(id);
+        }
+        drop(sep);
+
+        builder.push(")");
     }
 
-    let transaction_rows: Vec<TransactionRow> = query.fetch_all(pool).await?;
+    // OR products
+    if !query.product_ids.is_empty() {
+        builder.push(" AND EXISTS (SELECT 1 FROM TransactionItem item WHERE item.product IN (");
 
-    let mut transactions = Vec::new();
-    for row in transaction_rows {
-        let mut transaction = Transaction::from(row);
-        let items: Vec<TransactionItemRow> = sqlx::query_as(r#"
-            SELECT id, transaction_id, product, quantity, name, price
-            FROM TransactionItem
-            WHERE transaction_id = ?
-            "#).bind(transaction.id).fetch_all(pool).await?;
-        transaction.add_items(items);
-        transactions.push(transaction);
+        let mut sep = builder.separated(", ");
+        for id in query.product_ids {
+            sep.push_bind(id);
+        }
+        drop(sep);
+
+        builder.push(") AND item.transaction_id = st.id)");
     }
+
+    // BETWEEN time range
+    if let Some(time_range) = query.time_range {
+        time_range.push_onto_builder(&mut builder, " AND ");
+    }
+    
+    // CURSOR
+    if let Some(cursor) = query.cursor {
+        let cmp = if query.descending { '<' } else { '>' };
+        builder.push(format!(" AND (st.datetime {cmp} ")).push_bind(cursor.datetime);
+        builder.push(" OR (st.datetime = ").push_bind(cursor.datetime);
+        builder.push(format!(" AND st.id {cmp} ")).push_bind(cursor.id);
+        builder.push("))");
+    }
+
+    // SEARCH by fts table
+    if let Some(search_term) = query.search_term {
+        let normalized_search_term = search_term.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(|w| format!("\"{w}\"*"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !normalized_search_term.trim().is_empty() {
+            builder.push(" AND EXISTS (SELECT 1 FROM TransactionFts WHERE transaction_id = st.id");
+            builder.push(" AND TransactionFts MATCH ").push_bind(normalized_search_term);
+            builder.push(")");
+        }
+    }
+
+    // ORDER
+    if query.descending {
+        builder.push(" ORDER BY st.datetime DESC, st.id DESC");
+    } else {
+        builder.push(" ORDER BY st.datetime ASC, st.id ASC");
+    }
+
+    // LIMIT 
+    let limit = query.limit.clamp(1, 100);
+    builder.push(" LIMIT ").push_bind(limit);
+    
+    let transactions: Vec<TransactionSummary> = builder.build_query_as().fetch_all(pool).await?;
+    
     Ok(transactions)
 }
 

@@ -194,7 +194,7 @@ impl From<reqwest::Error> for AppError {
 }
 
 impl From<reqwest::header::ToStrError> for AppError {
-    fn from(err: reqwest::header::ToStrError) -> Self {;
+    fn from(err: reqwest::header::ToStrError) -> Self {
         AppError::ClientHeaderError(err)
     }
 }

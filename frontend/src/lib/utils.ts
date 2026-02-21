@@ -2,7 +2,6 @@ import { error, redirect } from "@sveltejs/kit";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { cart } from "./storage.svelte";
-import { parseAbsoluteToLocal } from "@internationalized/date";
 import { invalidateAll } from "$app/navigation";
 import { toast } from "svelte-sonner";
 
@@ -39,15 +38,51 @@ export async function getUser(fetch: svelteFetch) {
     return await response.json()
 }
 
-export async function getTransactions(fetch: svelteFetch, userId?: number) {
+type TimeRange = {
+    start?: number;
+    end?: number;
+}
+
+export type TransactionQuery = {
+    user_ids: number[];
+    product_ids: number[];
+    time_range?: TimeRange;
+    search_term?: string;
+    cursor?: number;
+    limit: number;
+    descending: boolean;
+};
+
+export function defaultTransactionQuery(): TransactionQuery {
+    return {
+        user_ids: [],
+        product_ids: [],
+        time_range: {
+            start: Math.round(Date.now() / 1000 - 60 * 60 * 24 * 30),
+        },
+        limit: 20,
+        descending: true,
+    };
+}
+
+export function transactionQueryFromUserId(ownUserId: number): TransactionQuery {
+    return {
+        user_ids: [ownUserId],
+        product_ids: [],
+        limit: 20,
+        descending: true,
+    };
+}
+
+export async function getTransactions(query?: TransactionQuery) {
     if (import.meta.env.SSR) {
         return [];
     }
-    let endpoint = "/api/get_transactions";
-    if (userId != null) {
-       endpoint += `?user_id=${userId}`;
+    if (query == null) {
+        query = defaultTransactionQuery();
     }
-    let transactionResponse = await fetch(endpoint);
+    // Need POST because of complex query structure
+    let transactionResponse = await backendPOST("/get_transactions", query, true);
     if (!transactionResponse.ok) {
         throw error(transactionResponse.status, transactionResponse.statusText);
     }
@@ -93,12 +128,12 @@ export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     } 
 }
 
-export function getDateString(dbDateString: string) {
-  return parseAbsoluteToLocal(dbDateString).toDate().toLocaleDateString("sv-SE");
-}
-
-export function getSeconds(dbDateString: string) {
-    return Math.floor(new Date(dbDateString).getTime() / 1000);
+/**
+ * Formats a Unix timestamp into a localized date string (sv-SE).
+ * @param unix - seconds since epoch (`number`) as returned by the backend
+ */
+export function getDateString(unix: number) {
+  return new Date(unix * 1000).toLocaleDateString("sv-SE");
 }
 
 type SearchStore<T extends object> = {

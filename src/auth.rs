@@ -44,7 +44,7 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
-pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::User, AppError> {
+pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::UserRow, AppError> {
     let Some(token) = parse_auth_cookie(cookie) else {
         return Err(AppError::GenericError(String::from("Couldn't parse cookie")));
     };

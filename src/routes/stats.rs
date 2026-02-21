@@ -1,16 +1,16 @@
 use actix_web::{HttpResponse, Responder, get, web::{self, Data}};
-use sqlx::{Database, Encode, Type, query::{QueryAs, QueryScalar}};
+use sqlx::{Database, Encode, QueryBuilder, Type, query::{QueryAs, QueryScalar}};
 
 use crate::{AppError, AppState};
 
 #[derive(serde::Deserialize)]
-struct TimeRange {
+pub struct TimeRange {
     start: Option<i64>,
     end: Option<i64>,
 }
 
 impl TimeRange {
-    fn as_predicate(&self, start_with_if_present: &str) -> String {
+    pub fn as_predicate(&self, start_with_if_present: &str) -> String {
         match (self.start, self.end) {
             (Some(_), Some(_)) => format!("{}st.datetime BETWEEN ? AND ?", start_with_if_present),
             (None, Some(_)) => format!("{}st.datetime < ?", start_with_if_present),
@@ -18,10 +18,46 @@ impl TimeRange {
             (None, None) => String::new()
         }
     }
+
+    pub fn push_onto_builder<'args, DB: Database>(&self, builder: &mut QueryBuilder<'args, DB>, prefix: &str)
+    where i64: Encode<'args, DB> + Type<DB>
+    {
+        match (self.start, self.end) {
+            (Some(start), Some(end)) => {
+                builder.push(format!("{}st.datetime BETWEEN ", prefix));
+                builder.push_bind(start);
+                builder.push(" AND ");
+                builder.push_bind(end);
+            }
+            (None, Some(end)) => {
+                builder.push(format!("{}st.datetime < ", prefix));
+                builder.push_bind(end);
+            }
+            (Some(start), None) => {
+                builder.push(format!("{}st.datetime > ", prefix));
+                builder.push_bind(start);
+            }
+            (None, None) => {}
+        }
+    }
 }
 
-trait TimeRangeBindable {
+pub trait TimeRangeBindable {
     fn bind_time_range(self, time_range: TimeRange) -> Self;
+}
+
+impl <'args, DB: Database>TimeRangeBindable for QueryBuilder<'args, DB>
+    where i64: Encode<'args, DB> + Type<DB>,
+{
+    fn bind_time_range(mut self, time_range: TimeRange) -> Self {
+        match (time_range.start, time_range.end) {
+            (Some(start), Some(end)) => { self.push_bind(start); self.push_bind(end); }
+            (None, Some(end)) => { self.push_bind(end); }
+            (Some(start), None) => { self.push_bind(start); }
+            (None, None) => {}
+        }
+        self
+    }
 }
 
 type QAs<'q, DB, O> = QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>;

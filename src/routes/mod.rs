@@ -9,7 +9,7 @@ pub mod payment;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
 use sqlx::SqlitePool;
 
-use crate::{AppError, AppState, auth, database::model::User, utils::{self, get_path}};
+use crate::{AppError, AppState, auth, database::model::UserRow, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -95,7 +95,7 @@ pub async fn permission_middleware(
     }
 }
 
-pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<User, AppError> {
+pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
     let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
 
     Ok(user)

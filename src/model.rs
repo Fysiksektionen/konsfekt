@@ -1,6 +1,6 @@
-use time::{OffsetDateTime};
+use serde::{Deserialize, Serialize};
 
-use crate::{database::{model::{ProductRow, TransactionItemRow, TransactionRow}}};
+use crate::{Role, database::{model::{ProductRow, TransactionItemRow, TransactionRow, UserRow}}, routes::stats};
 
 #[derive(serde::Deserialize)]
 pub struct ProductParams {
@@ -123,32 +123,78 @@ impl From<TransactionItemRow> for TransactionItem {
 }
 
 #[derive(serde::Serialize)]
-pub struct Transaction {
+pub struct TransactionDetail {
     pub id: u32,
     pub amount: f32,
-    #[serde(with = "time::serde::iso8601")]
-    pub datetime: OffsetDateTime,
-    search_term: String,
+    pub user: UserResponse,
+    pub datetime: i64,
     items: Vec<TransactionItem>
 }
 
-impl Transaction {
+#[derive(serde::Serialize, sqlx::FromRow)]
+pub struct TransactionSummary {
+    pub id: u32,
+    pub amount: f32,
+    pub user_email: String,
+    pub datetime: i64,
+}
+
+impl TransactionDetail {
     pub fn add_items(&mut self, items: Vec<TransactionItemRow>) {
         for i in items {
-            self.search_term.push_str(&format!("{} {} ", i.name, i.product));
             self.items.push(TransactionItem::from(i));
+        }
+    }
+
+    pub fn create(transaction: TransactionRow, user: UserRow) -> Self {
+        TransactionDetail {
+            id: transaction.id,
+            amount: transaction.amount,
+            user: UserResponse::from(user),
+            datetime: transaction.datetime,
+            items: Vec::new()
         }
     }
 }
 
-impl From<TransactionRow> for Transaction {
-    fn from(row: TransactionRow) -> Self {
-        Transaction {
+#[derive(Deserialize)]
+pub struct TransactionQuery {
+    pub user_ids: Vec<u32>,
+    pub product_ids: Vec<u32>,
+    pub time_range: Option<stats::TimeRange>,
+    pub search_term: Option<String>,
+    pub cursor: Option<TimeIdCursor>, // pagination
+    pub limit: u32,
+    pub descending: bool,
+}
+
+#[derive(Deserialize)]
+pub struct TimeIdCursor {
+    pub datetime: i64, // UNIX timestamp
+    pub id: u32 // e.g Transaction id
+}
+
+#[derive(Serialize)]
+pub struct UserResponse {
+    pub id: u32,
+    pub name: Option<String>,
+    pub email: String,
+    pub balance: f32,
+    pub role: Role,
+    pub on_leaderboard: bool,
+    pub private_transactions: bool
+}
+
+impl From<UserRow> for UserResponse {
+    fn from(row: UserRow) -> Self {
+        UserResponse {
             id: row.id,
-            amount: row.amount,
-            datetime: OffsetDateTime::from_unix_timestamp(row.datetime).unwrap_or_else(|_| OffsetDateTime::UNIX_EPOCH),
-            search_term: String::new(),
-            items: Vec::new()
+            name: row.name,
+            email: row.email,
+            balance: row.balance,
+            role: row.role,
+            on_leaderboard: row.on_leaderboard,
+            private_transactions: row.private_transactions,
         }
     }
 }

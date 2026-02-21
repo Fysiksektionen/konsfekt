@@ -1,24 +1,13 @@
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 
-use crate::{AppError, AppState, Role, database::{crud, model::User}, routes::user_from_cookie};
-
-#[derive(Serialize)]
-struct GetUserResponse {
-    id: u32,
-    name: Option<String>,
-    email: String,
-    balance: f32,
-    role: Role,
-    on_leaderboard: bool,
-    private_transactions: bool
-}
+use crate::{AppError, AppState, Role, database::{crud, model::UserRow}, model::{TransactionQuery, UserResponse}, routes::user_from_cookie};
 
 #[get("/api/get_user")]
-pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<GetUserResponse>, AppError> {
+pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<UserResponse>, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
     
-    let user_response = GetUserResponse {
+    let user_response =  UserResponse {
         id: user.id,
         name: user.name,
         email: user.email,
@@ -30,7 +19,6 @@ pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Js
     Ok(web::Json(user_response))
 }
 
-
 #[derive(Deserialize)]
 struct GetUsersQuery {
     role: Option<String>
@@ -38,7 +26,7 @@ struct GetUsersQuery {
 
 #[derive(Serialize)]
 struct GetUsersResponse {
-    users: Vec<User>
+    users: Vec<UserRow>
 }
 
 #[get("/api/get_users")]
@@ -118,20 +106,25 @@ pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::J
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct GetTransactionQuery {
-    user_id: Option<u32>,
+#[get("/api/get_detailed_transaction/{transaction_id}")]
+pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> Result<impl Responder, AppError> {
+    let user = user_from_cookie(&state.db, &req).await?;
+
+    let transaction = crud::get_detailed_transaction(&state.db, *path, user).await?;
+    
+    Ok(HttpResponse::Ok().json(transaction))
 }
 
-
-#[get("/api/get_transactions")]
-pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Query<GetTransactionQuery>) -> Result<impl Responder, AppError> {
+#[post("/api/get_transactions")]
+pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Json<TransactionQuery>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    if user.role == Role::User &&
-        (query.user_id.is_some_and(|id| id != user.id) || query.user_id.is_none()) {
+
+    let other_users_requested = query.user_ids.iter().any(|id| *id != user.id) || query.user_ids.is_empty();
+    if user.role == Role::User && other_users_requested {
         return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Cannot get other user's transactions")));
     }
-    let transactions = crud::get_transactions(&state.db, query.user_id).await?;
+
+    let transactions = crud::query_transactions(&state.db, query.0).await?;
 
     Ok(HttpResponse::Ok().json(transactions))
 }
