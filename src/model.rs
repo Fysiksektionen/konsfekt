@@ -165,6 +165,7 @@ pub struct TransactionQuery {
     pub search_term: Option<String>,
     pub cursor: Option<TimeIdCursor>, // pagination
     pub limit: u32,
+    pub descending: bool,
 }
 
 #[derive(Deserialize)]

@@ -371,9 +371,10 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     
     // CURSOR
     if let Some(cursor) = query.cursor {
-        builder.push(" AND (st.datetime < ").push_bind(cursor.datetime);
+        let cmp = if query.descending { '<' } else { '>' };
+        builder.push(format!(" AND (st.datetime {cmp} ")).push_bind(cursor.datetime);
         builder.push(" OR (st.datetime = ").push_bind(cursor.datetime);
-        builder.push(" AND st.id < ").push_bind(cursor.id);
+        builder.push(format!(" AND st.id {cmp} ")).push_bind(cursor.id);
         builder.push("))");
     }
 
@@ -391,9 +392,16 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
         }
     }
 
-    // ORDER + LIMIT
+    // ORDER
+    if query.descending {
+        builder.push(" ORDER BY st.datetime DESC, st.id DESC");
+    } else {
+        builder.push(" ORDER BY st.datetime ASC, st.id ASC");
+    }
+
+    // LIMIT 
     let limit = query.limit.clamp(1, 100);
-    builder.push(" ORDER BY st.datetime DESC, st.id DESC LIMIT ").push_bind(limit);
+    builder.push(" LIMIT ").push_bind(limit);
     
     let transactions: Vec<TransactionSummary> = builder.build_query_as().fetch_all(pool).await?;
     
