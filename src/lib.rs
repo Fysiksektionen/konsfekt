@@ -138,6 +138,7 @@ impl AppState {
 #[derive(Debug)]
 pub enum AppError {
     ClientError(reqwest::Error),
+    ClientHeaderError(reqwest::header::ToStrError),
     DatabaseError(sqlx::Error),
     ActixError(actix_web::Error),
     GenericError(String),
@@ -145,6 +146,8 @@ pub enum AppError {
     BadRequest(String),
 
     SessionError(String),
+
+    SwishError(String),
 }
 
 impl fmt::Display for AppError {
@@ -152,10 +155,13 @@ impl fmt::Display for AppError {
         match self {
             AppError::ActixError(err) => write!(f, "{err}"),
             AppError::ClientError(err) => write!(f, "Client error: {err}"),
+            AppError::ClientHeaderError(err) => write!(f, "Client error: {err}"),
             AppError::DatabaseError(err) => write!(f, "Database error: {err}"),
             AppError::GenericError(err) => write!(f, "Generic error: {err}"),
             AppError::SessionError(err) => write!(f, "Session error: {err}"),
             AppError::BadRequest(err) => write!(f, "Bad request: {err}"),
+            
+            AppError::SwishError(err) => write!(f, "Swish error: {err}"),
         }
     }
 }
@@ -184,6 +190,12 @@ impl From<actix_web::Error> for AppError {
 impl From<reqwest::Error> for AppError {
     fn from(err: reqwest::Error) -> Self {
         AppError::ClientError(err)
+    }
+}
+
+impl From<reqwest::header::ToStrError> for AppError {
+    fn from(err: reqwest::header::ToStrError) -> Self {
+        AppError::ClientHeaderError(err)
     }
 }
 

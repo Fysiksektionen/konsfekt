@@ -1,7 +1,7 @@
 use sqlx::{QueryBuilder, Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
-use crate::database::model::{TransactionItemRow, TransactionRow};
+use crate::database::model::{SwishPaymentRow, TransactionItemRow, TransactionRow};
 use crate::model::{PendingTransaction, TransactionDetail, TransactionQuery, TransactionSummary};
 use crate::{AppError, Role};
 
@@ -406,4 +406,25 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     let transactions: Vec<TransactionSummary> = builder.build_query_as().fetch_all(pool).await?;
     
     Ok(transactions)
+}
+
+//
+//          Payement
+//
+
+pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRow) -> Result<(), AppError> {
+
+    sqlx::query(
+        r#"
+        INSERT INTO SwishPayment (id, user, status, token, location)
+        VALUES (?, ?, ?, ?, ?, ?)
+        "#
+    ).bind(row.id)
+    .bind(row.user)
+    .bind(row.status)
+    .bind(row.token)
+    .bind(row.location)
+    .execute(pool).await?;
+
+    Ok(())
 }

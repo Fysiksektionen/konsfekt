@@ -9,7 +9,7 @@ CREATE TABLE Product (
 
 CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user INTEGER NOT NULL,
+    user INTEGER, -- If user deleted
     amount REAL NOT NULL,
     datetime INTEGER NOT NULL,
     FOREIGN KEY("user") REFERENCES User("id") ON DELETE SET NULL
