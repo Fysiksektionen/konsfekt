@@ -18,6 +18,28 @@ impl TimeRange {
             (None, None) => String::new()
         }
     }
+
+    pub fn push_onto_builder<'args, DB: Database>(&self, builder: &mut QueryBuilder<'args, DB>, prefix: &str)
+    where i64: Encode<'args, DB> + Type<DB>
+    {
+        match (self.start, self.end) {
+            (Some(start), Some(end)) => {
+                builder.push(format!("{}st.datetime BETWEEN ", prefix));
+                builder.push_bind(start);
+                builder.push(" AND ");
+                builder.push_bind(end);
+            }
+            (None, Some(end)) => {
+                builder.push(format!("{}st.datetime < ", prefix));
+                builder.push_bind(end);
+            }
+            (Some(start), None) => {
+                builder.push(format!("{}st.datetime > ", prefix));
+                builder.push_bind(start);
+            }
+            (None, None) => {}
+        }
+    }
 }
 
 pub trait TimeRangeBindable {

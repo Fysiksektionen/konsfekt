@@ -8,7 +8,7 @@
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
     import { Separator } from "$lib/components/ui/separator/index.js";
     import * as Dialog from "$lib/components/ui/dialog/index.js";
-    import { backendPOST, getDateString, getSeconds, undoTransaction } from "$lib/utils";
+    import { backendPOST, getDateString, toUnixTimestamp, undoTransaction } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { Badge } from '$lib/components/ui/badge';
     import { invalidateAll } from '$app/navigation';
@@ -39,7 +39,7 @@
 
  let currentTime = $state(Math.floor(Date.now()/1000));
 
- let timeSincePurchace = $derived(currentTime - getSeconds(currentTransaction?.datetime));
+ let timeSincePurchace = $derived(currentTime - toUnixTimestamp(currentTransaction?.datetime));
 
  onMount(() => {
 		const interval = setInterval(() => {

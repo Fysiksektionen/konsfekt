@@ -3,6 +3,7 @@ use std::{fs, io::BufReader};
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::web::Data;
 use image::ImageReader;
+use time::OffsetDateTime;
 
 use crate::{AppError, AppState};
 
@@ -48,4 +49,11 @@ pub fn delete_img_from_disk(name: &str) -> Result<(), AppError> {
         Ok(_) => Ok(()),
         Err(_) => Err(AppError::GenericError("Failed to delete file".to_string())),
     }
+}
+
+/// Converts a Unix timestamp (`i64`, seconds since epoch) to [`OffsetDateTime`].
+///
+/// Falls back to [`OffsetDateTime::UNIX_EPOCH`] if `unix` is outside the valid range.
+pub fn datetime_from_timestamp(unix: i64) -> OffsetDateTime {
+    OffsetDateTime::from_unix_timestamp(unix).unwrap_or_else(|_| OffsetDateTime::UNIX_EPOCH)
 }

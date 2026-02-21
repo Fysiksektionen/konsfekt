@@ -1,7 +1,8 @@
 use crate::{Role, model::ProductFlags};
 
+/// DO NOT SEND TO FRONTEND
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
-pub struct User {
+pub struct UserRow {
     pub id: u32,
     pub name: Option<String>,
     pub email: String,

@@ -1,19 +1,18 @@
-use sqlx::{QueryBuilder, Result, SqlitePool, query};
+use sqlx::{QueryBuilder, Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{TransactionItemRow, TransactionRow};
-use crate::model::{PendingTransaction, Transaction, TransactionQuery};
-use crate::routes::stats::TimeRangeBindable;
+use crate::model::{PendingTransaction, TransactionDetail, TransactionQuery, TransactionSummary};
 use crate::{AppError, Role};
 
-use super::model::User;
+use super::model::UserRow;
 use super::model::ProductRow;
 
 //
 //          User
 //
 
-pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<User, AppError> {
+pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<UserRow, AppError> {
     let user_table_has_rows: bool = sqlx::query_scalar(r#"
         SELECT EXISTS(SELECT 1 FROM User)"#).fetch_one(pool).await?;
     
@@ -26,7 +25,7 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
         "#).bind(name).bind(email).bind(google_id).bind(&role).fetch_one(pool)
     .await?;
 
-    Ok(User { 
+    Ok(UserRow { 
         id, 
         name: name.map(str::to_owned), 
         email: email.to_string(), 
@@ -38,8 +37,8 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
     })
 }
 
-pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<User, AppError> {
-    let user: User = sqlx::query_as(
+pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<UserRow, AppError> {
+    let user: UserRow = sqlx::query_as(
         r#"
         SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
         FROM User 
@@ -48,7 +47,7 @@ pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option
     Ok(user)
 }
 
-pub async fn update_user(pool: &SqlitePool, user: User) -> Result<(), AppError> {
+pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), AppError> {
     sqlx::query(
         r#"
         UPDATE User SET name = ?, role = ?, balance = ?  
@@ -143,8 +142,8 @@ pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<
     Ok(())
 }
 
-pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<User>, AppError> {
-    let users: Vec<User> = sqlx::query_as(
+pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<UserRow>, AppError> {
+    let users: Vec<UserRow> = sqlx::query_as(
         r#"
         SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
         FROM User 
@@ -305,17 +304,33 @@ pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Resul
     Ok(())
 }
 
-pub async fn get_single_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, AppError> {
+pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, AppError> {
     let transaction: TransactionRow = sqlx::query_as(r#"
         SELECT id, user, amount, datetime
         FROM StoreTransaction
         WHERE id = ?
         "#).bind(transaction_id).fetch_one(pool).await?;
-
+    
     Ok(transaction)
 }
 
-pub async fn get_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<Transaction>, AppError> {
+pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, user: UserRow) -> Result<TransactionDetail, AppError> {
+    let transaction = get_transaction(pool, transaction_id).await?;
+
+    let mut detailed_transaction = TransactionDetail::create(transaction, user);
+
+    let items: Vec<TransactionItemRow> = sqlx::query_as(r#"
+        SELECT id, transaction_id, product, quantity, name, price
+        FROM TransactionItem
+        WHERE transaction_id = ?
+        "#).bind(transaction_id).fetch_all(pool).await?;
+
+    detailed_transaction.add_items(items);
+
+    Ok(detailed_transaction)
+}
+
+pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, AppError> {
     let mut builder = QueryBuilder::new(r#"
         SELECT id, user, amount, datetime
         FROM StoreTransaction st
@@ -356,8 +371,7 @@ pub async fn get_transactions(pool: &SqlitePool, query: TransactionQuery) -> Res
 
     // BETWEEN time range
     if let Some(time_range) = query.time_range {
-        builder.push(time_range.as_predicate(" AND "));
-        builder = builder.bind_time_range(time_range);
+        time_range.push_onto_builder(&mut builder, " AND ");
     }
     
     // CURSOR
@@ -368,17 +382,12 @@ pub async fn get_transactions(pool: &SqlitePool, query: TransactionQuery) -> Res
     builder.push(" ORDER BY datetime DESC LIMIT ").push_bind(query.limit);
     
     let transaction_rows: Vec<TransactionRow> = builder.build_query_as().fetch_all(pool).await?;
-
+    
     let mut transactions = Vec::new();
     for row in transaction_rows {
-        let mut transaction = Transaction::from(row);
-        let items: Vec<TransactionItemRow> = sqlx::query_as(r#"
-            SELECT id, transaction_id, product, quantity, name, price
-            FROM TransactionItem
-            WHERE transaction_id = ?
-            "#).bind(transaction.id).fetch_all(pool).await?;
-        transaction.add_items(items);
-        transactions.push(transaction);
+        let user = get_user(pool, Some(row.user), None).await?;
+        transactions.push(TransactionSummary::create(row, user));
     }
+
     Ok(transactions)
 }

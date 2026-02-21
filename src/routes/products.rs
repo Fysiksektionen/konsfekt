@@ -3,9 +3,9 @@ use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartF
 use sqlx::SqlitePool;
 use time::OffsetDateTime;
 
-use crate::{AppError, AppState, Role, database::{self, model::User}, model::{PendingTransaction, Product, ProductParams}, routes::user_from_cookie, utils};
+use crate::{AppError, AppState, Role, database::{self, model::UserRow}, model::{PendingTransaction, Product, ProductParams}, routes::user_from_cookie, utils};
 
-fn product_assert_permission(product: &Product, user: &User) -> Result<(), AppError> {
+fn product_assert_permission(product: &Product, user: &UserRow) -> Result<(), AppError> {
     // Check if product may be modified
     if !product.flags.modifiable && user.role != Role::Admin {
         return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Product not modifiable")));
@@ -198,7 +198,7 @@ pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Js
 #[post("/api/undo_transaction")]
 pub async fn undo_transaction(state: Data<AppState>, req: HttpRequest, transaction_id: web::Json<TransactionIdJson>) -> Result<impl Responder, AppError> {
     let user = user_from_cookie(&state.db, &req).await?;
-    let transaction = database::crud::get_single_transaction(&state.db, transaction_id.transaction_id).await?;
+    let transaction = database::crud::get_transaction(&state.db, transaction_id.transaction_id).await?;
 
     if user.id != transaction.user {
        return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Cannot undo another user's transaction")));
