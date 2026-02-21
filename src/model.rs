@@ -131,7 +131,7 @@ pub struct TransactionDetail {
     items: Vec<TransactionItem>
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, sqlx::FromRow)]
 pub struct TransactionSummary {
     pub id: u32,
     pub amount: f32,
@@ -157,26 +157,20 @@ impl TransactionDetail {
     }
 }
 
-impl TransactionSummary {
-    pub fn create(transaction: TransactionRow, user: UserRow) -> Self {
-        TransactionSummary {
-            id: transaction.id,
-            amount: transaction.amount,
-            user_email: user.email,
-            datetime: transaction.datetime
-        }
-    }
-
-}
-
 #[derive(Deserialize)]
 pub struct TransactionQuery {
     pub user_ids: Vec<u32>,
     pub product_ids: Vec<u32>,
     pub time_range: Option<stats::TimeRange>,
     pub search_term: Option<String>,
-    pub cursor: Option<i64>, // UNIX timestamp
+    pub cursor: Option<TimeIdCursor>, // pagination
     pub limit: u32,
+}
+
+#[derive(Deserialize)]
+pub struct TimeIdCursor {
+    pub datetime: i64, // UNIX timestamp
+    pub id: u32 // e.g Transaction id
 }
 
 #[derive(Serialize)]

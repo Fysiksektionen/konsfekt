@@ -1,99 +1,51 @@
 <script lang="ts">
-  import * as Table from "$lib/components/ui/table/index.js";
-    import { fetchJSON, getDateString, undoTransaction } from "$lib/utils";
-    import * as Dialog from "$lib/components/ui/dialog/index.js";
+    import TransactionTable from "$lib/components/TransactionTable.svelte";
+    import Input from "$lib/components/ui/input/input.svelte";
+    import { defaultTransactionQuery, getTransactions } from "$lib/utils";
   import type { PageProps } from "./$types";
-  import { Separator } from "$lib/components/ui/separator/index.js";
-    import { onMount } from "svelte";
-    import { invalidateAll } from "$app/navigation";
     import Button from "$lib/components/ui/button/button.svelte";
-    import Badge from "$lib/components/ui/badge/badge.svelte";
+    import { onMount } from "svelte";
 
   let { data }: PageProps = $props();
+
+  let transactionQuery = $state(defaultTransactionQuery());
   
-  let currentTransaction = $state(null);
-  let transactionViewOpen = $state(false);
+  let timeOfSearchInputChange = $state(Date.now());
+  let hasSearched = $state(true);
+  let transactions = $state(data.transactions);
 
-  async function onTransactionClicked(transactionID: number) {
-    currentTransaction = await fetchJSON(fetch, "/api/get_detailed_transaction/" + transactionID);
-    transactionViewOpen = true;
+  async function search() {
+    if (transactionQuery.search_term == "") {
+      transactionQuery.search_term = undefined;
+    }
+    transactions = await getTransactions(transactionQuery);
   }
- let currentTime = $state(Math.floor(Date.now()/1000));
 
- let timeSincePurchace = $derived(currentTime - currentTransaction?.datetime ?? 0);
-
- onMount(() => {
-		const interval = setInterval(() => {
-			currentTime = Math.floor(Date.now()/1000);
-		}, 1000);
-
-		return () => {
-			clearInterval(interval);
-		};
-	});
+  onMount(() => {
+  	const interval = setInterval(() => {
+  		const currentTime = Date.now();
+      if (currentTime - timeOfSearchInputChange > 250 && !hasSearched) {
+        search();
+      }
+  	}, 50);
+  
+  	return () => {
+  		clearInterval(interval);
+  	};
+  });
 </script>
 
-<Table.Root>
-  <Table.Header>
-    <Table.Row>
-      <Table.Head>Användare</Table.Head>
-      <Table.Head>Typ</Table.Head>
-      <Table.Head>Belopp</Table.Head>
-      <Table.Head>Datum</Table.Head>
-      <Table.Head class="text-end">Transaktions ID</Table.Head>
-    </Table.Row>
-  </Table.Header>
-  <Table.Body>
-    {#each data.transactions as transaction}
-      <Table.Row onclick={() => onTransactionClicked(transaction.id)}>
-        <Table.Cell>{transaction.user_email}</Table.Cell>
-        <Table.Cell>{transaction.amount > 0 ? 'Insättning' : "Köp"}</Table.Cell>
-        <Table.Cell class="font-medium text-blue-500">
-          {#if transaction.amount > 0}
-            <div class="font-medium text-blue-500">+{transaction.amount}</div>
-          {:else }
-            <div class="font-medium text-red-500">-{Math.abs(transaction.amount)}</div>
-          {/if}
-        </Table.Cell>
-        <Table.Cell>{getDateString(transaction.datetime)}</Table.Cell>
-        <Table.Cell class="text-end">
-          <Badge variant="outline">T{transaction.id}</Badge>
-        </Table.Cell>
-      </Table.Row>
-    {/each}
-  </Table.Body>
-</Table.Root>
+<div class="flex gap-3 flex-col">
+  <div class="flex gap-3">
+    <Input 
+      oninput={() => {
+        timeOfSearchInputChange = Date.now();
+        hasSearched = false;
+      }} 
+      placeholder="Sök efter transaktioner..." class="max-w-sm mr-1" bind:value={transactionQuery.search_term}/>
+    <!-- <Button onclick={() => search()} variant="secondary">Sök</Button> <!-- TODO: search as user types -->
+  </div>
 
-<Dialog.Root bind:open={transactionViewOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>{currentTransaction?.amount > 0 ? "Insättning" : "Köp" }</Dialog.Title>
-      <Dialog.Description>
-        {getDateString(currentTransaction?.datetime)}
-        <Separator/>
-        {#if currentTransaction?.amount <= 0}
-          <div class="flex flex-col mt-1">
-            {#each currentTransaction?.items as item}
-              <div class="flex gap-2">
-                <p>{item.quantity}x {item.name} ({item.quantity * item.price}kr)</p>
-                <Badge variant="outline">P{item.product_id}</Badge>
-              </div>
-            {/each}
-          </div>
-        {/if}
-        <span class="text-2xl font-mono font-semibold">{currentTransaction?.amount}kr</span> 
-      </Dialog.Description>
-    </Dialog.Header>
-    {#key currentTime}
-      {#if timeSincePurchace < 60}
-        <Button onclick={() => {
-          undoTransaction(currentTransaction?.id)
-          transactionViewOpen = false;
-          invalidateAll();
-        }}>
-          Ångra köp ({60 - timeSincePurchace})
-        </Button>
-      {/if}
-    {/key}
-  </Dialog.Content>
-</Dialog.Root>
+  <TransactionTable transactions={transactions} isAdminTable={true}/>
+</div>
+

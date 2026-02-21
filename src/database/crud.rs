@@ -332,41 +332,36 @@ pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, us
 
 pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, AppError> {
     let mut builder = QueryBuilder::new(r#"
-        SELECT id, user, amount, datetime
+        SELECT st.id, u.email AS user_email, st.amount, st.datetime
         FROM StoreTransaction st
+        JOIN User u ON u.id = st.user
         WHERE 1=1
         "#);
     
     // OR users
     if !query.user_ids.is_empty() {
-        builder.push(" AND (");
+        builder.push(" AND st.user IN (");
 
-        let mut or_sep = builder.separated(" OR ");
+        let mut sep = builder.separated(", ");
         for id in query.user_ids {
-            or_sep.push("user = ").push_bind_unseparated(id);
+            sep.push_bind(id);
         }
-        drop(or_sep);
+        drop(sep);
 
         builder.push(")");
     }
 
     // OR products
     if !query.product_ids.is_empty() {
-        builder.push(" AND EXISTS (SELECT 1 FROM TransactionItem item WHERE (");
+        builder.push(" AND EXISTS (SELECT 1 FROM TransactionItem item WHERE item.product IN (");
 
-        let mut or_sep = builder.separated(" OR ");
+        let mut sep = builder.separated(", ");
         for id in query.product_ids {
-            or_sep.push("item.product = ").push_bind_unseparated(id);
+            sep.push_bind(id);
         }
-        drop(or_sep);
+        drop(sep);
 
         builder.push(") AND item.transaction_id = st.id)");
-    }
-
-    // SEARCH by fts table
-    if let Some(search_term) = query.search_term {
-        builder.push(" AND EXISTS (SELECT 1 FROM TransactionFts WHERE TransactionFts MATCH ").push_bind(search_term);
-        builder.push(" AND TransactionFts.transaction_id = st.id)");
     }
 
     // BETWEEN time range
@@ -376,18 +371,31 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     
     // CURSOR
     if let Some(cursor) = query.cursor {
-        builder.push(" AND datetime < ").push_bind(cursor);
+        builder.push(" AND (st.datetime < ").push_bind(cursor.datetime);
+        builder.push(" OR (st.datetime = ").push_bind(cursor.datetime);
+        builder.push(" AND st.id < ").push_bind(cursor.id);
+        builder.push("))");
     }
 
-    builder.push(" ORDER BY datetime DESC LIMIT ").push_bind(query.limit);
-    
-    let transaction_rows: Vec<TransactionRow> = builder.build_query_as().fetch_all(pool).await?;
-    
-    let mut transactions = Vec::new();
-    for row in transaction_rows {
-        let user = get_user(pool, Some(row.user), None).await?;
-        transactions.push(TransactionSummary::create(row, user));
+    // SEARCH by fts table
+    if let Some(search_term) = query.search_term {
+        let normalized_search_term = search_term.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(|w| format!("\"{w}\"*"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !normalized_search_term.trim().is_empty() {
+            builder.push(" AND EXISTS (SELECT 1 FROM TransactionFts WHERE transaction_id = st.id");
+            builder.push(" AND TransactionFts MATCH ").push_bind(normalized_search_term);
+            builder.push(")");
+        }
     }
 
+    // ORDER + LIMIT
+    let limit = query.limit.clamp(1, 100);
+    builder.push(" ORDER BY st.datetime DESC, st.id DESC LIMIT ").push_bind(limit);
+    
+    let transactions: Vec<TransactionSummary> = builder.build_query_as().fetch_all(pool).await?;
+    
     Ok(transactions)
 }
