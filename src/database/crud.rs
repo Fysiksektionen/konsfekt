@@ -418,8 +418,7 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     }
 
     // LIMIT 
-    let limit = query.limit.clamp(1, 100);
-    builder.push(" LIMIT ").push_bind(limit);
+    builder.push(" LIMIT ").push_bind(query.limit);
     
     let transactions: Vec<TransactionSummary> = builder.build_query_as().fetch_all(pool).await?;
     

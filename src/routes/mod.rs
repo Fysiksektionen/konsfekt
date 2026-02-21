@@ -5,6 +5,7 @@ pub mod user;
 pub mod stats;
 pub mod debug;
 pub mod payment;
+pub mod transactions;
 
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
 use sqlx::SqlitePool;
