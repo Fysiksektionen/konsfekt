@@ -54,14 +54,20 @@
           <Table.Cell>{transaction.amount > 0 ? 'Insättning' : "Köp"}</Table.Cell>
           <Table.Cell class="font-medium text-blue-500">
             {#if transaction.amount > 0}
-              <div class="font-medium text-blue-500">+{transaction.amount}</div>
+              <div class="text-end font-medium text-blue-500">+{transaction.amount} kr</div>
             {:else }
-              <div class="font-medium text-red-500">-{Math.abs(transaction.amount)}</div>
+              <div class="text-end font-medium text-red-500">-{Math.abs(transaction.amount)} kr</div>
             {/if}
           </Table.Cell>
           <Table.Cell>{getDateString(transaction.datetime)}</Table.Cell>
           <Table.Cell class="text-end">
             <Badge variant="outline">T{transaction.id}</Badge>
+          </Table.Cell>
+        </Table.Row>
+      {:else}
+        <Table.Row>
+          <Table.Cell colspan={isAdminTable ? 5 : 4} class="text-center text-muted-foreground">
+            Inga transaktioner hittades
           </Table.Cell>
         </Table.Row>
       {/each}
@@ -86,7 +92,7 @@
             {/each}
           </div>
         {/if}
-        <span class="text-2xl font-mono font-semibold">{currentTransaction?.amount}kr</span> 
+        <span class="text-2xl font-mono font-semibold">{Math.abs(currentTransaction?.amount)}kr</span> 
       </Dialog.Description>
     </Dialog.Header>
     {#if !isAdminTable}

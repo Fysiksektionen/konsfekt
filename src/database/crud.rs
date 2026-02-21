@@ -330,6 +330,10 @@ pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, us
     Ok(detailed_transaction)
 }
 
+const PAYMENT_KEYWORDS: [&str; 4] = [
+    "swish", "insättning", "deposit", "payment"
+];
+
 pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, AppError> {
     let mut builder = QueryBuilder::new(r#"
         SELECT st.id, u.email AS user_email, st.amount, st.datetime
@@ -378,17 +382,31 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
         builder.push("))");
     }
 
-    // SEARCH by fts table
+    // SEARCH by fts table + keywords
     if let Some(search_term) = query.search_term {
-        let normalized_search_term = search_term.split(|c: char| !c.is_alphanumeric())
+
+        let (terms, found_payment_keyword) = search_term.split(|c: char| !c.is_alphanumeric())
             .filter(|w| !w.is_empty())
-            .map(|w| format!("\"{w}\"*"))
-            .collect::<Vec<_>>()
-            .join(" ");
+            .map(|w| w.to_lowercase())
+            .fold((Vec::new(), false), |(mut terms, mut found_kw), w| {
+                if PAYMENT_KEYWORDS.contains(&w.as_str()) {
+                    found_kw = true;
+                } else {
+                    terms.push(format!("\"{w}\"*"));
+                }
+                (terms, found_kw)
+            });
+        
+        let normalized_search_term = terms.join(" ");
+
         if !normalized_search_term.trim().is_empty() {
             builder.push(" AND EXISTS (SELECT 1 FROM TransactionFts WHERE transaction_id = st.id");
             builder.push(" AND TransactionFts MATCH ").push_bind(normalized_search_term);
             builder.push(")");
+        }
+
+        if found_payment_keyword {
+            builder.push(" AND st.amount > 0");
         }
     }
 
@@ -409,7 +427,7 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
 }
 
 //
-//          Payement
+//          Payment
 //
 
 pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRow) -> Result<(), AppError> {

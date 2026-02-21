@@ -57,9 +57,6 @@ export function defaultTransactionQuery(): TransactionQuery {
     return {
         user_ids: [],
         product_ids: [],
-        time_range: {
-            start: Math.round(Date.now() / 1000 - 60 * 60 * 24 * 30),
-        },
         limit: 20,
         descending: true,
     };

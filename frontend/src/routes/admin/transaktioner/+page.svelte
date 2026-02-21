@@ -73,14 +73,21 @@
     }
   ];
   let filterValue = $state("");
+  let prevFilterValue = "";
  
   const triggerContent = $derived(
     filters.find((f) => f.value === filterValue)?.label ?? "Filtrera"
   );
 
-  function applyFilter(filter: Filter) {
-    filter.apply(transactionQuery);
-    console.log("hello")
+  function toggleFilter(filter: Filter) {
+    if (filter.value != prevFilterValue) {
+      filter.apply(transactionQuery);
+    } else {
+      filterValue = "";
+      transactionQuery.time_range = undefined;
+      transactionQuery.descending = true;
+    }
+    prevFilterValue = filter.value;
     search();
   }
 </script>
@@ -101,7 +108,7 @@
           <Select.Item
             value={filter.value}
             label={filter.label}
-            onclick={() => applyFilter(filter)}
+            onclick={() => toggleFilter(filter)}
           >
             {filter.label}
           </Select.Item>
