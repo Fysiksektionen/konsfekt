@@ -7,6 +7,8 @@
     import { invalidateAll } from "$app/navigation";
     import Button from "$lib/components/ui/button/button.svelte";
     import Badge from "$lib/components/ui/badge/badge.svelte";
+    import UserDialog from "./UserDialog.svelte";
+    import { Role } from "./schemas";
 
   let { transactions, isAdminTable = false } = $props();
   
@@ -49,6 +51,7 @@
       {#each transactions as transaction}
         <Table.Row onclick={() => onTransactionClicked(transaction.id)}>
           {#if isAdminTable}
+            <!-- <UserDialog iAmAdmin={data.user.role = Role.Admin} /> -->
             <Table.Cell>{transaction.user_email}</Table.Cell>
           {/if}
           <Table.Cell>{transaction.amount > 0 ? 'Insättning' : "Köp"}</Table.Cell>

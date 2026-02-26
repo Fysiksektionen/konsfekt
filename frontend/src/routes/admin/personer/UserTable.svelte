@@ -3,7 +3,7 @@
 
 
 import * as Table from "$lib/components/ui/table/index.js";
-    import { get_roles, type Filter, type User } from "./schema";
+    import { get_roles, type Filter, type User } from "$lib/components/schemas";
 
 let { data, onclick, filter = null } = $props()
 
@@ -38,7 +38,7 @@ function filter_data(data: Array<User>, filter: Filter): Array<User> {
     </Table.Header>
     <Table.Body>
         {#each filter_data(data, filter) as user}
-            <Table.Row onclick={() => {onclick(user)}}>
+            <Table.Row onclick={() => onclick(user)}>
                 <Table.Cell>{user.email}</Table.Cell>
                 <Table.Cell>{user.name}</Table.Cell>
                 <Table.Cell>{get_roles().find((f: {value: string}) => f.value == user.role)?.label}</Table.Cell>

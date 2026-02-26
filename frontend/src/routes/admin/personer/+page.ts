@@ -1,5 +1,5 @@
 import type { PageLoad } from './$types';
-import { type User, Role } from "./schema.js"
+import { type User, Role } from "$lib/components/schemas"
 import { fetchJSON } from '$lib/utils';
 
 export const load: PageLoad = async ({ fetch }) => {
