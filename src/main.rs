@@ -17,6 +17,9 @@ async fn main() -> std::io::Result<()> {
 
     if env.is_debug {
         builder.filter_module("konsfekt", log::LevelFilter::Debug);
+        unsafe {
+            std::env::set_var("RUST_LOG", "reqwest=debug,hyper=debug");
+        }
     }
 
     builder.init();
@@ -75,6 +78,10 @@ async fn main() -> std::io::Result<()> {
             .service(routes::products::buy_single_product)
             .service(routes::products::undo_transaction)
             .service(routes::products::mark_sold_out)
+            
+            // Swish API
+            .service(routes::payment::swish::create_payment_request)
+            .service(routes::payment::swish::swish_callback)
 
             // Stats API
             .service(routes::stats::best_selling_product)
