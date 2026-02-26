@@ -12,11 +12,19 @@ CREATE VIRTUAL TABLE "TransactionFts" USING fts5 (
 CREATE TRIGGER "InsertTransactionItemTrigger" 
     AFTER INSERT ON "TransactionItem"
 BEGIN
-    INSERT INTO "TransactionFts" (transaction_id, user_id, product_name, username, user_email)
-    SELECT NEW.transaction_id, u.id, NEW.name, u.name, u.email
+    INSERT INTO "TransactionFts" (transaction_id, product_name)
+    SELECT NEW.transaction_id, NEW.name
     FROM StoreTransaction st
-    JOIN User u ON u.id = st.user
     WHERE st.id = NEW.transaction_id;
+END;
+
+CREATE TRIGGER "InsertStoreTransaction"
+    AFTER INSERT ON "StoreTransaction"
+BEGIN
+    INSERT INTO "TransactionFts" (transaction_id, user_id, username, user_email)
+    SELECT NEW.id, NEW.user, u.name, u.email 
+    FROM User u 
+    WHERE u.id = NEW.user;
 END;
 
 -- User can change username, link new username to all previous transactions made by user

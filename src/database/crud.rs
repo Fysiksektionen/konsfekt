@@ -388,13 +388,13 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
         let (terms, found_payment_keyword) = search_term.split(|c: char| !c.is_alphanumeric())
             .filter(|w| !w.is_empty())
             .map(|w| w.to_lowercase())
-            .fold((Vec::new(), false), |(mut terms, mut found_kw), w| {
+            .fold((Vec::new(), false), |(mut terms, mut payment_kw), w| {
                 if PAYMENT_KEYWORDS.contains(&w.as_str()) {
-                    found_kw = true;
+                    payment_kw = payment_kw || true;
                 } else {
                     terms.push(format!("\"{w}\"*"));
                 }
-                (terms, found_kw)
+                (terms, payment_kw)
             });
         
         let normalized_search_term = terms.join(" ");
