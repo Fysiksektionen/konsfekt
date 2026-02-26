@@ -94,7 +94,9 @@ pub mod swish {
             .json(&pro)
             .send().await?;
 
-        if response.status() == 201 {
+        let status = response.status();
+
+        if status == 201 {
             return match (
                 response.headers().get("PaymentRequestToken"),
                 response.headers().get("Location")
@@ -106,9 +108,14 @@ pub mod swish {
                 }),
                 _ => Err(AppError::SwishError(String::from("Swish is bad at coding, idk"))),
             }
+        } else {
+            if let Ok(text) = response.text().await {
+                println!("{:?}", text)
+            }
         }
+        
 
-        return Err(AppError::SwishError(String::from(format!("{}", response.status()))))
+        return Err(AppError::SwishError(String::from(format!("{}", status))));
 
     }
 
