@@ -7,7 +7,7 @@ pub mod model;
 use std::{collections::HashMap, env, fmt, fs};
 
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
-use reqwest::Client;
+use reqwest::{Certificate, Client, Identity};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
 
@@ -126,9 +126,20 @@ pub struct AppState {
 
 impl AppState {
     pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables) -> Self {
+
+        let cert_bytes = fs::read("certificates/Swish_Merchant_TestCertificate_1234679304.p12").unwrap();
+        let identity = Identity::from_pkcs12_der(&cert_bytes, "swish").unwrap();
+
+        let ca_cert = fs::read("certificates/Swish_TLS_RootCA.pem").unwrap();
+        let ca = Certificate::from_pem(&ca_cert).unwrap();
+
         AppState {
             db: pool,
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .identity(identity)
+                .add_root_certificate(ca)
+                .build()
+                .expect("Could not build reqwest::Client"),
             env: env_vars.clone(),
             permission_table: PermissionTable::from(&env_vars.permission_table_path)
         }

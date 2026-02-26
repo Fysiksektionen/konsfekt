@@ -27,7 +27,11 @@
         },
         error: "Något gick fel"
       }
-    )
+    );
+  }
+  async function testSwish() {
+    let response = await backendPOST("/payment/swish/create_payment_request?amount=31", {}, true);
+    console.log(response);
   }
 </script>
 
@@ -41,6 +45,7 @@
     </div>
 
   <Button onclick={() => debug_add_money()} class="text-2xl text-card-foreground" variant="secondary">Lägg till pengar</Button>
+  <Button onclick={() => testSwish()} class="text-2xl text-card-foreground" variant="secondary">Testa swish</Button>
   
   <!--
   <div class="flex w-full flex-col items-center gap-2">
