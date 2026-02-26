@@ -11,16 +11,16 @@ pub enum PaymentMethod {
 
 pub mod swish {
     use actix_web::{HttpRequest, Responder, post, web::{self, Data}};
-    use reqwest::Client;
+    use reqwest::{Client, header::{CONTENT_TYPE, HeaderMap, HeaderValue}};
     use sqlx::database;
     use uuid::Uuid;
 
     use crate::{AppError, AppState, database::{crud, model::SwishPaymentRow}, routes::user_from_cookie};
 
 
-    const PAYEE_NUMBER: &str = "0123456789"; // Should be env
-    const CALLBACK_URL: &str = "/payment/swish/callback"; // Remember to change post function
-    const SWISH_REQUEST_URL: &str = "";
+    const PAYEE_NUMBER: &str = "1234679304"; // Should be env
+    const CALLBACK_URL: &str = "/api/payment/swish/callback"; // Remember to change post function
+    const SWISH_REQUEST_URL: &str = "https://mss.cpc.getswish.net/swish-cpcapi/api/v2/paymentrequests/";
 
     #[derive(serde::Serialize)]
     #[allow(non_snake_case)]
@@ -84,12 +84,19 @@ pub mod swish {
         let id: Uuid = Uuid::new_v4();
         let pro = PaymentRequestObject::new(state, amount);
 
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
         // Skicka till swish
-        let response = state.client.post(SWISH_REQUEST_URL)
+        let response = state.client
+            .put(format!("{}{}", SWISH_REQUEST_URL, id.simple().to_string().to_uppercase()))
+            .headers(headers)
             .json(&pro)
             .send().await?;
 
-        if response.status() == 201 {
+        let status = response.status();
+
+        if status == 201 {
             return match (
                 response.headers().get("PaymentRequestToken"),
                 response.headers().get("Location")
@@ -101,9 +108,14 @@ pub mod swish {
                 }),
                 _ => Err(AppError::SwishError(String::from("Swish is bad at coding, idk"))),
             }
+        } else {
+            if let Ok(text) = response.text().await {
+                println!("{:?}", text)
+            }
         }
+        
 
-        return Err(AppError::SwishError(String::from(format!("Bad Swish Request, got status code [{}]", response.status()))))
+        return Err(AppError::SwishError(String::from(format!("{}", status))));
 
     }
 
@@ -120,7 +132,7 @@ pub mod swish {
     #[derive(serde::Serialize)]
     struct CreatePaymentRequestResponse { token: String }
 
-    #[post("/payment/swish/create_payment_request")]
+    #[post("/api/payment/swish/create_payment_request")]
     pub async fn create_payment_request(state: Data<AppState>, req: HttpRequest, query: web::Query<CreatePaymentRequestQuery>) -> Result<impl Responder, AppError> {
         let user = user_from_cookie(&state.db, &req).await?;
         
@@ -142,7 +154,7 @@ pub mod swish {
         }))
     }
 
-    #[post("/payment/swish/callback")] // Remember to change CALLBACK_URL
+    #[post("/api/payment/swish/callback")] // Remember to change CALLBACK_URL
     pub async fn swish_callback(callback: web::Json<PaymentCallback>) -> Result<(), AppError> {
         handle_callback(callback.into_inner()).await?;
         Ok(())
