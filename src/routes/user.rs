@@ -1,10 +1,10 @@
-use actix_web::{HttpRequest, HttpResponse, Responder, get, post, web::{self, Data}};
+use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 
 use crate::{AppError, AppState, Role, database::{crud, model::UserRow}, model::{TransactionQuery, UserResponse}, routes::user_from_cookie};
 
 #[get("/api/get_user")]
-pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<UserResponse>, AppError> {
+pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<UserResponse>, actix_web::Error> {
     let user = user_from_cookie(&state.db, &req).await?;
     
     let user_response =  UserResponse {
@@ -30,7 +30,7 @@ struct GetUsersResponse {
 }
 
 #[get("/api/get_users")]
-pub async fn get_users(state: Data<AppState>, req: HttpRequest, query: web::Query<GetUsersQuery>) -> Result<web::Json<GetUsersResponse>, AppError> {
+pub async fn get_users(state: Data<AppState>, req: HttpRequest, query: web::Query<GetUsersQuery>) -> Result<web::Json<GetUsersResponse>, impl ResponseError> {
     // Possible to expand in futre for diffrent queries
 
     let user = user_from_cookie(&state.db, &req).await?;
@@ -53,7 +53,7 @@ struct DeleteUserQuery {
 }
 
 #[post("/api/delete_user")]
-pub async fn delete_user(state: Data<AppState>, req: HttpRequest, query: web::Query<DeleteUserQuery>) -> Result<(), AppError> {
+pub async fn delete_user(state: Data<AppState>, req: HttpRequest, query: web::Query<DeleteUserQuery>) -> Result<(), impl ResponseError> {
     
     let user = user_from_cookie(&state.db, &req).await?;
     if user.role <= Role::Maintainer {
@@ -79,7 +79,7 @@ struct ChangeUsernameParam {
 }
 
 #[post("/api/set_username")]
-pub async fn set_username(state: Data<AppState>, req: HttpRequest, params: web::Json<ChangeUsernameParam>) -> Result<(), AppError> { 
+pub async fn set_username(state: Data<AppState>, req: HttpRequest, params: web::Json<ChangeUsernameParam>) -> Result<(), impl ResponseError> { 
     let user = user_from_cookie(&state.db, &req).await?;
     crud::update_user_name(&state.db, user.id, &params.name).await?;
 
@@ -87,7 +87,7 @@ pub async fn set_username(state: Data<AppState>, req: HttpRequest, params: web::
 }
 
 #[post("/api/update_user")]
-pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::Json<UpdateUserParams>) -> Result<(), AppError> {
+pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::Json<UpdateUserParams>) -> Result<(), impl ResponseError> {
     let user_admin = user_from_cookie(&state.db, &req).await?;
     if user_admin.role <= Role::Maintainer {
         return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Cannot change other user's information")));
@@ -107,7 +107,7 @@ pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::J
 }
 
 #[get("/api/get_detailed_transaction/{transaction_id}")]
-pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> Result<impl Responder, AppError> {
+pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
 
     let transaction = crud::get_detailed_transaction(&state.db, *path, user).await?;
@@ -116,7 +116,7 @@ pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, p
 }
 
 #[post("/api/get_transactions")]
-pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Json<TransactionQuery>) -> Result<impl Responder, AppError> {
+pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Json<TransactionQuery>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
 
     let other_users_requested = query.user_ids.iter().any(|id| *id != user.id) || query.user_ids.is_empty();

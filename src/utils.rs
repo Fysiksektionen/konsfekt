@@ -5,6 +5,7 @@ use actix_web::web::Data;
 use image::ImageReader;
 use time::OffsetDateTime;
 
+use actix_web::ResponseError;
 use crate::{AppError, AppState};
 
 
@@ -44,7 +45,7 @@ pub fn save_img_to_disk(img_file: TempFile, name: &str) -> Option<()> {
     resized.save(format!("{IMG_DISK_PATH}{}.webp", name)).ok()
 }
 
-pub fn delete_img_from_disk(name: &str) -> Result<(), AppError> {
+pub fn delete_img_from_disk(name: &str) -> Result<(), impl ResponseError> {
     match  fs::remove_file(format!("{IMG_DISK_PATH}{name}.webp")) {
         Ok(_) => Ok(()),
         Err(_) => Err(AppError::GenericError("Failed to delete file".to_string())),

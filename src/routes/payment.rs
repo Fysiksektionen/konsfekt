@@ -10,7 +10,7 @@ pub enum PaymentMethod {
 }
 
 pub mod swish {
-    use actix_web::{HttpRequest, Responder, post, web::{self, Data}};
+    use actix_web::{HttpRequest, Responder, ResponseError, post, web::{self, Data}};
     use reqwest::{Client, header::{CONTENT_TYPE, HeaderMap, HeaderValue}};
     use sqlx::database;
     use uuid::Uuid;
@@ -80,7 +80,7 @@ pub mod swish {
         Pending, Paid
     }
 
-    async fn create_request(state: &Data<AppState>, amount: f32) -> Result<PaymentRequest, AppError> {
+    async fn create_request(state: &Data<AppState>, amount: f32) -> Result<PaymentRequest, impl ResponseError> {
         let id: Uuid = Uuid::new_v4();
         let pro = PaymentRequestObject::new(state, amount);
 
@@ -114,12 +114,10 @@ pub mod swish {
             }
         }
         
-
         return Err(AppError::SwishError(String::from(format!("{}", status))));
-
     }
 
-    async fn handle_callback(payment_callback: PaymentCallback) -> Result<(), AppError>{
+    async fn handle_callback(payment_callback: PaymentCallback) -> Result<(), impl ResponseError>{
         println!("CALLBACK!!!");
         
         Ok(())
@@ -133,7 +131,7 @@ pub mod swish {
     struct CreatePaymentRequestResponse { token: String }
 
     #[post("/api/payment/swish/create_payment_request")]
-    pub async fn create_payment_request(state: Data<AppState>, req: HttpRequest, query: web::Query<CreatePaymentRequestQuery>) -> Result<impl Responder, AppError> {
+    pub async fn create_payment_request(state: Data<AppState>, req: HttpRequest, query: web::Query<CreatePaymentRequestQuery>) -> Result<impl Responder, impl ResponseError> {
         let user = user_from_cookie(&state.db, &req).await?;
         
         if query.amount < 30.0 {
@@ -155,7 +153,7 @@ pub mod swish {
     }
 
     #[post("/api/payment/swish/callback")] // Remember to change CALLBACK_URL
-    pub async fn swish_callback(callback: web::Json<PaymentCallback>) -> Result<(), AppError> {
+    pub async fn swish_callback(callback: web::Json<PaymentCallback>) -> Result<(), impl ResponseError> {
         handle_callback(callback.into_inner()).await?;
         Ok(())
     }

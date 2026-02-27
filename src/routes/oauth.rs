@@ -1,4 +1,4 @@
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder, cookie::Cookie, get, web::{self, Data}};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder, ResponseError, cookie::Cookie, get, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
@@ -40,7 +40,7 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
 }
 
 #[get("/api/auth/google/callback")]
-pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<AuthRequest>) -> Result<impl Responder, AppError> {
+pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<AuthRequest>) -> Result<impl Responder, impl ResponseError> {
     let resp: GoogleTokenResponse = state.client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
@@ -73,7 +73,7 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
     return create_session_response(state, user?.id).await;
 }
 
-async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<impl Responder, AppError> {
+async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<impl Responder, impl ResponseError> {
     let session_token = match auth::create_session(&state.db, user_id).await {
         Ok((_, token)) => token,
         Err(_) => return Err(AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not create session")))
@@ -93,7 +93,7 @@ async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<
 }
 
 #[get("/api/auth/logout")]
-pub async fn logout(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
+pub async fn logout(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, impl ResponseError> {
     let extensions = req.extensions();
     let session = extensions.get::<Session>().ok_or_else(||
         AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not find session to remove for logged in user"))
@@ -113,7 +113,7 @@ pub async fn logout(state: Data<AppState>, req: HttpRequest) -> Result<impl Resp
 }
 
 #[get("/api/auth/change_email")]
-pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, AppError> {
+pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
     crud::initiate_email_switch(&state.db, user.id).await?;
 

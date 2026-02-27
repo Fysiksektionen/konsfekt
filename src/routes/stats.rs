@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, Responder, get, web::{self, Data}};
+use actix_web::{HttpResponse, Responder, ResponseError, get, web::{self, Data}};
 use sqlx::{Database, Encode, QueryBuilder, Type, query::{QueryAs, QueryScalar}};
 
 use crate::{AppError, AppState};
@@ -97,7 +97,7 @@ struct BestSellingProduct {
 }
 
 #[get("/api/stats/best_selling_product")]
-pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, impl ResponseError> {
     let sql = format!(r#"
         SELECT
             p.id,
@@ -125,7 +125,7 @@ struct PurchasesInfo {
 }
 
 #[get("/api/stats/purchases")]
-pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, impl ResponseError> {
     let sql = format!(r#"
         SELECT
             COUNT(*) AS count,
@@ -145,7 +145,7 @@ struct DepositsInfo {
 }
 
 #[get("/api/stats/deposits")]
-pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, impl ResponseError> {
     let sql = format!(r#"
         SELECT
             COALESCE(SUM(st.amount), 0.0) AS total,
@@ -166,7 +166,7 @@ struct CustomerInfo {
 }
 
 #[get("/api/stats/customers")]
-pub async fn customers(state: Data<AppState>) -> Result<impl Responder, AppError> {
+pub async fn customers(state: Data<AppState>) -> Result<impl Responder, impl ResponseError> {
     let sql = r#"
         SELECT
             COUNT(*) AS count,

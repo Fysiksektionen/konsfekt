@@ -3,6 +3,7 @@ pub mod auth;
 pub mod routes;
 pub mod utils;
 pub mod model;
+pub mod error;
 
 use std::{collections::HashMap, env, fmt, fs};
 

@@ -1,9 +1,9 @@
-use actix_web::{HttpRequest, HttpResponse, Responder, get, post, web::{self, Data}};
+use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, get, post, web::{self, Data}};
 
 use crate::{AppError, AppState, Role, database::crud, model::TransactionQuery, routes::user_from_cookie};
 
 #[get("/api/get_detailed_transaction/{transaction_id}")]
-pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> Result<impl Responder, AppError> {
+pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
 
     let transaction = crud::get_detailed_transaction(&state.db, *path, user).await?;
@@ -12,7 +12,7 @@ pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, p
 }
 
 // Use when/if csv exporting should be implemented
-async fn check_transaction_query_permission(state: &Data<AppState>, req: HttpRequest, query: &TransactionQuery) -> Result<(), AppError> {
+async fn check_transaction_query_permission(state: &Data<AppState>, req: HttpRequest, query: &TransactionQuery) -> Result<(), impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
 
     let other_users_requested = query.user_ids.iter().any(|id| *id != user.id) || query.user_ids.is_empty();
@@ -23,7 +23,7 @@ async fn check_transaction_query_permission(state: &Data<AppState>, req: HttpReq
 }
 
 #[post("/api/get_transactions")]
-pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Json<TransactionQuery>) -> Result<impl Responder, AppError> {
+pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Json<TransactionQuery>) -> Result<impl Responder, impl ResponseError> {
     check_transaction_query_permission(&state, req, &query.0).await?;
 
     let mut query = query.0;

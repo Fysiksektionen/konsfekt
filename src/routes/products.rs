@@ -1,11 +1,11 @@
-use actix_web::{HttpRequest, HttpResponse, Responder, get, post, web::{self, Data}};
+use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, get, post, web::{self, Data}};
 use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use sqlx::SqlitePool;
 use time::OffsetDateTime;
 
 use crate::{AppError, AppState, Role, database::{self, model::UserRow}, model::{PendingTransaction, Product, ProductParams}, routes::user_from_cookie, utils};
 
-fn product_assert_permission(product: &Product, user: &UserRow) -> Result<(), AppError> {
+fn product_assert_permission(product: &Product, user: &UserRow) -> Result<(), impl ResponseError> {
     // Check if product may be modified
     if !product.flags.modifiable && user.role != Role::Admin {
         return Err(AppError::ActixError(actix_web::error::ErrorUnauthorized("Product not modifiable")));
@@ -14,7 +14,7 @@ fn product_assert_permission(product: &Product, user: &UserRow) -> Result<(), Ap
     Ok(())
 }
 
-async fn get_product_from_id(pool: &SqlitePool, id: Option<u32>) -> Result<Product, AppError> {
+async fn get_product_from_id(pool: &SqlitePool, id: Option<u32>) -> Result<Product, impl ResponseError> {
     let id = id.ok_or(AppError::BadRequest("Missing required argument \"id\"".to_string()))?;
 
     let product_row = database::crud::get_product(pool, id).await?;
@@ -32,7 +32,7 @@ struct ProductAndImageForm {
 }
 
 #[post("/api/create_product")]
-pub async fn create_product(state: Data<AppState>, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<impl Responder, AppError> {
+pub async fn create_product(state: Data<AppState>, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<impl Responder, impl ResponseError> {
     let product = Product::from_request(form.product.into_inner())
         .map_err(|_| AppError::BadRequest("Missing required arguments".to_string()))?;
     let product_row = database::crud::create_product(&state.db, product.into_row()).await?;
@@ -49,7 +49,7 @@ pub async fn create_product(state: Data<AppState>, MultipartForm(form): Multipar
 
 
 #[post("/api/update_product")]
-pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<impl Responder, AppError> {
+pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
     let mut product = get_product_from_id(&state.db, form.product.id).await?;
     let params = form.product.into_inner();
@@ -77,7 +77,7 @@ pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartFo
 }
 
 #[post("/api/mark_sold_out")]
-pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
+pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJson>) -> Result<impl Responder, impl ResponseError> {
     let mut product = get_product_from_id(&state.db, Some(params.id)).await?;
     
     if product.stock.is_none() {
@@ -95,7 +95,7 @@ pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJso
 struct ProductIdJson { id: u32 }
 
 #[post("/api/delete_product")]
-pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
+pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductIdJson>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
     let product = get_product_from_id(&state.db, Some(params.id)).await?;
 
@@ -110,7 +110,7 @@ pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web
 }
 
 #[get("/api/get_products")]
-pub async fn get_products(state: Data<AppState>) -> Result<impl Responder, AppError> {
+pub async fn get_products(state: Data<AppState>) -> Result<impl Responder, impl ResponseError> {
     let products = database::crud::get_products(&state.db).await?;
 
     Ok(HttpResponse::Ok().json(products))
@@ -122,7 +122,7 @@ struct TransactionIdJson {
 }
 
 #[post("/api/buy_single_product")]
-pub async fn buy_single_product(state: Data<AppState>, req: HttpRequest, product: web::Json<ProductIdJson>) -> Result<impl Responder, AppError> {
+pub async fn buy_single_product(state: Data<AppState>, req: HttpRequest, product: web::Json<ProductIdJson>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
     let product = database::crud::get_product(&state.db, product.id).await?;
 
@@ -160,7 +160,7 @@ struct ProductInCart {
 }
 
 #[post("/api/buy_products")]
-pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Json<Cart>) -> Result<impl Responder, AppError> {
+pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Json<Cart>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
     let mut products = Vec::new();
     for p in &cart.products {
@@ -196,7 +196,7 @@ pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Js
 }
 
 #[post("/api/undo_transaction")]
-pub async fn undo_transaction(state: Data<AppState>, req: HttpRequest, transaction_id: web::Json<TransactionIdJson>) -> Result<impl Responder, AppError> {
+pub async fn undo_transaction(state: Data<AppState>, req: HttpRequest, transaction_id: web::Json<TransactionIdJson>) -> Result<impl Responder, impl ResponseError> {
     let user = user_from_cookie(&state.db, &req).await?;
     let transaction = database::crud::get_transaction(&state.db, transaction_id.transaction_id).await?;
 

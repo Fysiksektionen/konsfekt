@@ -7,10 +7,10 @@ pub mod debug;
 pub mod payment;
 pub mod transactions;
 
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, ResponseError, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
 use sqlx::SqlitePool;
 
-use crate::{AppError, AppState, auth, database::model::UserRow, utils::{self, get_path}};
+use crate::{AppError, AppState, auth, database::model::UserRow, error::DatabaseError, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
@@ -96,7 +96,7 @@ pub async fn permission_middleware(
     }
 }
 
-pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
+pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, DatabaseError> {
     let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
 
     Ok(user)
