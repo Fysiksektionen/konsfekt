@@ -1,12 +1,12 @@
 use core::fmt;
 
-use actix_web::{HttpResponse, ResponseError, http::StatusCode};
+use actix_web::{HttpResponse, Responder, ResponseError, http::StatusCode};
 
 /// Helper macro that logs and returns an [`actix_web::Error`]
 #[macro_export]
 macro_rules! actix_err {
     ($error:expr) => {
-        let error = $error;
+        let error: actix_web::Error = $error;
         log::debug!("{}", error);
         return Err(error);
     };
@@ -130,14 +130,18 @@ impl SwishErrorResponse {
 app_error_enum! {
     Database(DatabaseError(sqlx::Error)),
     Client(ClientError(reqwest::Error)),
+    // Actix(ActixError(actix_web::Error)),
     Auth(AuthError(&'static str, no_source)),
     Swish(SwishError(SwishErrorResponse, no_source)),
 }
+
+pub type ApiResult<T: Responder> = Result<T, actix_web::Error>;
 
 macro_rules! match_error_variant {
     ($match:ident, $on_match:expr) => {
         match $match {
             AppError::Database(err) => $on_match(err),
+            //AppError::Actix(err) => $on_match(err),
             AppError::Client(err) => $on_match(err),
             AppError::Auth(err) => $on_match(err),
             AppError::Swish(err) => $on_match(err),

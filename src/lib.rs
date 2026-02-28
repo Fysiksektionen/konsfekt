@@ -5,9 +5,8 @@ pub mod utils;
 pub mod model;
 pub mod error;
 
-use std::{collections::HashMap, env, fmt, fs};
+use std::{collections::HashMap, env, fs};
 
-use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use reqwest::{Certificate, Client, Identity};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
