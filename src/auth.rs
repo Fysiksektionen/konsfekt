@@ -1,11 +1,11 @@
-use actix_web::cookie::Cookie;
+use actix_web::{cookie::Cookie, http::StatusCode};
 use rand::{rngs::OsRng, TryRngCore};
 use sha2::{Digest, Sha256};
 use sqlx::{Result, SqlitePool};
 use time::{Duration, OffsetDateTime};
 use hex;
 
-use crate::{AppError, actix_err, database::{crud, model}, error::DatabaseError};
+use crate::{actix_err, database::{crud, model}, error::{AppError, AuthError, DatabaseError, SessionError}};
 
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
@@ -44,12 +44,17 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
-pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::UserRow, actix_web::Error> {
+pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::UserRow, AppError> {
     let Some(token) = parse_auth_cookie(cookie) else {
-        actix_err!(actix_web::error::ErrorBadRequest("Could not parse auth cookie"));
+        // Or should it return internal server error becuase authentication has already been done
+        // by middleware?
+        return Err(AuthError::new("Could not parse auth cookie")
+            .with_status(StatusCode::BAD_REQUEST)
+            .into()
+        );
     };
 
-    let session = get_session(pool, token.id).await?;
+    let session = get_session(pool, token.id).await.map_err(|err| DatabaseError::from(err))?;
 
     match session {
         Some(session) => {
@@ -58,18 +63,22 @@ pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'stat
             return Ok(user);
         },
         None => {
-            actix_err!(actix_web::error::ErrorUnauthorized("Session not found or expired"));
+            return Err(
+                AuthError::new("Session not found or expired")
+                    .with_status(StatusCode::UNAUTHORIZED)
+                    .into()
+            );
         }
     }
 }
 
-pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<(Session, String), actix_web::Error> {
+pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<(Session, String), AppError> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
     let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
         _ => {
             log::debug!("Could not generate random string for session creation");
-            actix_err!(actix_web::error::ErrorInternalServerError("Could not create session"));
+            return Err(AuthError::new("Could not create session").into());
         }
     };
     let secret_hash = hex::encode(Sha256::digest(secret.clone()));
