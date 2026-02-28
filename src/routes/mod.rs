@@ -96,7 +96,7 @@ pub async fn permission_middleware(
     }
 }
 
-pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, DatabaseError> {
+pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, actix_web::Error> {
     let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
 
     Ok(user)

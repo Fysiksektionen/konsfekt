@@ -73,7 +73,7 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
     return create_session_response(state, user?.id).await;
 }
 
-async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<impl Responder, impl ResponseError> {
+async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<impl Responder, actix_web::Error> {
     let session_token = match auth::create_session(&state.db, user_id).await {
         Ok((_, token)) => token,
         Err(_) => return Err(AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not create session")))

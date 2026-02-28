@@ -2,86 +2,7 @@ use core::fmt;
 
 use actix_web::{HttpResponse, ResponseError, http::StatusCode};
 
-
-/// Wraps the given error with a new type. From, Error & Display is implemented.
-macro_rules! wrapper_error {
-    ($name:ident($inner:ty)) => {
-        #[derive(Debug)]
-        pub struct $name(pub $inner);
-
-        impl From<$inner> for $name {
-            fn from(e: $inner) -> Self { Self(e) }
-        }
-
-        impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
-
-        impl std::error::Error for $name {
-            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-                Some(&self.0)
-            }
-        }
-    };
-}
-
-/// Implements [`ResponseError`] for a type with a given status code
-macro_rules! impl_response_error {
-    ($name:ident, $status:expr) => {
-        impl ResponseError for $name {
-            fn status_code(&self) -> actix_web::http::StatusCode {
-                $status
-            }
-        
-            fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
-                if self.status_code().is_server_error() {
-                    log::error!("{self}");
-                } else {
-                    log::debug!("{self}");
-                }
-                HttpResponse::build(self.status_code()).body(stringify!($name))
-            }
-        }
-    };
-}
-
-
-wrapper_error!(DatabaseError(sqlx::Error));
-wrapper_error!(ClientError(reqwest::Error));
-
-impl_response_error!(DatabaseError, StatusCode::INTERNAL_SERVER_ERROR);
-impl_response_error!(ClientError, StatusCode::INTERNAL_SERVER_ERROR);
-
-#[derive(serde::Deserialize, Debug)]
-pub struct SwishError {
-    #[serde(rename = "errorCode")]
-    code: String,
-    #[serde(rename = "errorMessage")]
-    message: String,
-    #[serde(rename = "additionalInformation")]
-    additional_info: String
-}
-
-impl fmt::Display for SwishError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Swish error {}: {} Additional info: {}", self.code, self.message, self.additional_info)
-    }
-}
-
-impl_response_error!(SwishError, StatusCode::INTERNAL_SERVER_ERROR);
-
-impl SwishError {
-    pub async fn from_response(resp: reqwest::Response) -> Option<SwishError> {
-        match resp.json::<SwishError>().await {
-            Ok(swish_error) => Some(swish_error),
-            Err(_) => None
-        }
-    }
-}
-
-
+/// Helper macro that logs and returns an [`actix_web::Error`]
 #[macro_export]
 macro_rules! actix_err {
     ($error:expr) => {
@@ -89,4 +10,148 @@ macro_rules! actix_err {
         log::debug!("{}", error);
         return Err(error);
     };
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct SwishErrorResponse {
+    #[serde(rename = "errorCode")]
+    code: String,
+    #[serde(rename = "errorMessage")]
+    message: String,
+    #[serde(rename = "additionalInformation")]
+    additional_info: String,
+    /// Underlying client HTTP code
+    #[serde(skip_deserializing)]
+    http_status: Option<reqwest::StatusCode>
+}
+
+impl fmt::Display for SwishErrorResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Swish error {}: {} Additional info: {}", self.code, self.message, self.additional_info)
+    }
+}
+
+impl SwishErrorResponse {
+    pub async fn from_response(resp: reqwest::Response) -> Option<Self> {
+        let status = resp.status();
+        match resp.json::<SwishErrorResponse>().await {
+            Ok(mut swish_error) => {
+                swish_error.http_status = Some(status);
+                Some(swish_error)
+            },
+            Err(_) => None
+        }
+    }
+}
+
+/// Wraps `$inner` in a newtype which implements [`std::fmt::Display`], [`From<$inner>`] and 
+/// [`ResponseError`]. The newtype wrapper also becomes and error type that optionally can
+/// implement [`std::error::Error::source`]. Pass `no_source` if the wrapped `$inner` type is not an error.
+///
+/// Example:
+/// ```rust, ignore
+/// app_error_enum! {
+/// //  EnumVariant(WrapperError(InnnerType)),
+///     Database(DatabaseError(sqlx::Error)),
+///     Client(ClientError(reqwest::Error)),
+///     Session(SessionError(String, no_source)),
+/// }
+///
+/// ```
+macro_rules! app_error_enum {
+    ($($variant:ident($wrapper:ident($inner:ty $(, $no_source:ident)?))),+ $(,)?) => {
+        $(
+            #[derive(Debug)]
+            pub struct $wrapper($inner);
+
+            impl From<$inner> for $wrapper {
+                fn from(e: $inner) -> Self { Self(e) }
+            }
+
+            impl std::fmt::Display for $wrapper {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write!(f, "{}", self.0)
+                }
+            }
+
+            impl From<$wrapper> for AppError {
+                fn from(err: $wrapper) -> Self {
+                    AppError::$variant(err)
+                }
+            }
+
+            impl std::error::Error for $wrapper {
+                app_error_enum!(@source $($no_source)?);
+            }
+
+            impl ResponseError for $wrapper {
+                fn status_code(&self) -> actix_web::http::StatusCode {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                    
+                }
+            
+                fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
+                    HttpResponse::build(self.status_code()).body(stringify!($wrapper))
+                }
+            }
+        )+
+
+        #[derive(Debug)]
+        pub enum AppError {
+            $($variant($wrapper),)+
+        }
+
+    };
+    (@source) => {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(&self.0)
+        }
+    };
+    (@source no_source) => {
+    };
+}
+
+app_error_enum! {
+    Database(DatabaseError(sqlx::Error)),
+    Client(ClientError(reqwest::Error)),
+    Session(SessionError(String, no_source)),
+    Swish(SwishError(SwishErrorResponse, no_source)),
+}
+
+macro_rules! match_error_variant {
+    ($match:ident, $on_match:expr) => {
+        match $match {
+            AppError::Database(err) => $on_match(err),
+            AppError::Client(err) => $on_match(err),
+            AppError::Session(err) => $on_match(err),
+            AppError::Swish(err) => $on_match(err),
+        }
+    };
+}
+
+impl std::error::Error for AppError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        return match_error_variant!(self, std::error::Error::source);
+    }
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match_error_variant!(self, |err| write!(f, "{err}"))
+    }
+}
+
+impl ResponseError for AppError {
+    fn status_code(&self) -> StatusCode {
+        return match_error_variant!(self, ResponseError::status_code);
+    }
+
+    fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
+        if self.status_code().is_server_error() {
+            log::error!("{self}");
+        } else {
+            log::debug!("{self}");
+        }
+        HttpResponse::build(self.status_code()).body(self.to_string())
+    }
 }

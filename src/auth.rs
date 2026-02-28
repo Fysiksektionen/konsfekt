@@ -46,7 +46,7 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
 
 pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::UserRow, actix_web::Error> {
     let Some(token) = parse_auth_cookie(cookie) else {
-        actix_err!(actix_web::error::ErrorBadRequest("Could not parse cookie"));
+        actix_err!(actix_web::error::ErrorBadRequest("Could not parse auth cookie"));
     };
 
     let session = get_session(pool, token.id).await?;
@@ -57,15 +57,20 @@ pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'stat
             let user = crud::get_user(pool, Some(id), None).await?;
             return Ok(user);
         },
-        None => Err(AppError::SessionError(String::from("Unable to get session")))
+        None => {
+            actix_err!(actix_web::error::ErrorUnauthorized("Session not found or expired"));
+        }
     }
 }
 
-pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<(Session, String), DatabaseError> {
+pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<(Session, String), actix_web::Error> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
     let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
-        _ => return Err(AppError::GenericError("Could not generate random string".to_string()))
+        _ => {
+            log::debug!("Could not generate random string for session creation");
+            actix_err!(actix_web::error::ErrorInternalServerError("Could not create session"));
+        }
     };
     let secret_hash = hex::encode(Sha256::digest(secret.clone()));
 
@@ -78,7 +83,7 @@ pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<(Se
     sqlx::query("
         INSERT INTO Session (id, secret_hash, created_at, user)
         VALUES (?, ?, ?, ?)").bind(id).bind(secret_hash).bind(now).bind(user_id)
-        .execute(pool).await?;
+        .execute(pool).await.map_err(|err| DatabaseError::from(err))?;
     
     return Ok((session, token));
 }
