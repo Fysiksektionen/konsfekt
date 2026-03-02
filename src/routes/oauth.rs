@@ -1,8 +1,8 @@
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder, ResponseError, cookie::Cookie, get, web::{self, Data}};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, cookie::Cookie, get, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{AppError, AppState, auth::{self, Session}, database::crud, routes::user_from_cookie, utils};
+use crate::{AppState, auth::{self, Session}, database::crud, error::{ApiResult, ClientError}, return_err, routes::user_from_cookie, utils};
 
 //
 //              Google OAuth
@@ -26,7 +26,7 @@ struct GoogleUserInfo {
 }
 
 #[get("/api/auth/google")]
-pub async fn google_login(state: Data<AppState>) -> impl Responder {
+pub async fn google_login(state: Data<AppState>) -> HttpResponse {
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
         client_id={}&redirect_uri={}/api/auth/google/callback&response_type=code&\
@@ -40,7 +40,7 @@ pub async fn google_login(state: Data<AppState>) -> impl Responder {
 }
 
 #[get("/api/auth/google/callback")]
-pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<AuthRequest>) -> Result<impl Responder, impl ResponseError> {
+pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<AuthRequest>) -> ApiResult<HttpResponse> {
     let resp: GoogleTokenResponse = state.client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
@@ -50,14 +50,14 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
             ("grant_type", "authorization_code"),
             ("redirect_uri", format!("{}/api/auth/google/callback", state.env.site_domain).as_str()),
         ])
-        .send().await?
-        .json().await?;
+        .send().await.map_err(ClientError::from)?
+        .json().await.map_err(ClientError::from)?;
 
     let user_info: GoogleUserInfo = state.client
         .get("https://www.googleapis.com/oauth2/v2/userinfo")
         .bearer_auth(&resp.access_token)
-        .send().await?
-        .json().await?;
+        .send().await.map_err(ClientError::from)?
+        .json().await.map_err(ClientError::from)?;
 
     if let Ok(logged_in_user) = user_from_cookie(&state.db, &req).await {
         if crud::email_switch_exists(&state.db, logged_in_user.id).await? {
@@ -73,10 +73,10 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
     return create_session_response(state, user?.id).await;
 }
 
-async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<impl Responder, actix_web::Error> {
+async fn create_session_response(state: Data<AppState>, user_id: u32) -> ApiResult<HttpResponse> {
     let session_token = match auth::create_session(&state.db, user_id).await {
         Ok((_, token)) => token,
-        Err(_) => return Err(AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not create session")))
+        Err(_) => { return_err!(actix_web::error::ErrorInternalServerError("Could not create session")); },
     };
     let cookie = Cookie::build(auth::AUTH_COOKIE, session_token)
         .path("/")
@@ -89,22 +89,21 @@ async fn create_session_response(state: Data<AppState>, user_id: u32) -> Result<
         .cookie(cookie)
         .finish()
     )
-
 }
 
 #[get("/api/auth/logout")]
-pub async fn logout(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, impl ResponseError> {
+pub async fn logout(state: Data<AppState>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let extensions = req.extensions();
-    let session = extensions.get::<Session>().ok_or_else(||
-        AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not find session to remove for logged in user"))
-    )?;
+    let Some(session) = extensions.get::<Session>() else {
+        return_err!(actix_web::error::ErrorInternalServerError("Could not find session to remove for logged in user"));
+    };
     auth::invalidate_session(&state.db, session).await?;
-    let mut cookie = req.cookie(auth::AUTH_COOKIE).ok_or_else(||
-        AppError::ActixError(actix_web::error::ErrorInternalServerError("Could not find cookie"))
-    )?;
 
+    let Some(mut cookie) = req.cookie(auth::AUTH_COOKIE) else {
+        return_err!(actix_web::error::ErrorInternalServerError("Could not find cookie"));
+    };
     cookie.make_removal();
-    
+
     Ok(HttpResponse::Found()
         .append_header(("Location", utils::get_path(&state, "/login")))
         .cookie(cookie)
@@ -113,7 +112,7 @@ pub async fn logout(state: Data<AppState>, req: HttpRequest) -> Result<impl Resp
 }
 
 #[get("/api/auth/change_email")]
-pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> Result<impl Responder, impl ResponseError> {
+pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let user = user_from_cookie(&state.db, &req).await?;
     crud::initiate_email_switch(&state.db, user.id).await?;
 

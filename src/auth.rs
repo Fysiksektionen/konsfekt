@@ -5,7 +5,7 @@ use sqlx::{Result, SqlitePool};
 use time::{Duration, OffsetDateTime};
 use hex;
 
-use crate::{actix_err, database::{crud, model}, error::{AppError, AuthError, DatabaseError, SessionError}};
+use crate::{database::{crud, model}, error::{AppError, AuthError, DatabaseError}};
 
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";

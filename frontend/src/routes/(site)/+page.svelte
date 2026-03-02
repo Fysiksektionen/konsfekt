@@ -31,7 +31,9 @@
   }
   async function testSwish() {
     let response = await backendPOST("/payment/swish/create_payment_request?amount=31", {}, true);
-    console.log(response);
+    if (!response.ok) {
+      toast.error(`${response.statusText} (${await response.text()})`);
+    }
   }
 </script>
 

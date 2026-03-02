@@ -91,7 +91,7 @@ pub struct PermissionTable {
 impl PermissionTable {
     pub fn from(file_path: &str) -> Self {
         // We need permissions
-        let json_str = fs::read_to_string(&file_path).unwrap();
+        let json_str = fs::read_to_string(&file_path).expect(format!("Could not find file {}", file_path).as_str());
         let json: HashMap<String, Role> = serde_json::from_str(&json_str).unwrap();
         return PermissionTable { table: json };
     }

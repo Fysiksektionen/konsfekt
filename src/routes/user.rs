@@ -43,7 +43,7 @@ pub async fn get_users(state: Data<AppState>, req: HttpRequest, query: web::Quer
             let users = crud::get_users_from_role(&state.db, Role::from_str(role.as_str())).await?;
             Ok(web::Json(GetUsersResponse { users: users }))
         },
-        None => { return_err!(actix_web::error::ErrorBadRequest("")) }
+        None => { return_err!(actix_web::error::ErrorBadRequest("")); }
     }
 }
 

@@ -1,10 +1,11 @@
 use core::fmt;
+use std::any::Any;
 
-use actix_web::{HttpResponse, Responder, ResponseError, http::StatusCode};
+use actix_web::{HttpResponse, HttpResponseBuilder, Responder, ResponseError, http::StatusCode};
 
 /// Helper macro that logs and returns an [`actix_web::Error`]
 #[macro_export]
-macro_rules! actix_err {
+macro_rules! return_err {
     ($error:expr) => {
         let error: actix_web::Error = $error;
         log::debug!("{}", error);
@@ -103,26 +104,49 @@ pub struct SwishErrorResponse {
     message: String,
     #[serde(rename = "additionalInformation")]
     additional_info: String,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct SwishErrorList {
+    pub list: Vec<SwishErrorResponse>,
     /// Underlying client HTTP code
     #[serde(skip_deserializing)]
     http_status: Option<reqwest::StatusCode>
 }
 
-impl fmt::Display for SwishErrorResponse {
+impl fmt::Display for SwishErrorList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Swish error {}: {} Additional info: {}", self.code, self.message, self.additional_info)
+        let status_str = match self.http_status {
+            Some(status) => status.to_string(),
+            None => "UNKNOWN".to_string()
+        };
+        match self.list.len() {
+            0 => write!(f, "Empty swish error response with status: {status_str}"),
+            _ => {
+                let mut err_str = format!("Swish error with status {status_str}");
+                for swish_response in &self.list {
+                    err_str.push_str(&format!("\n\tSwish error {}: {}. Additional info: {}", 
+                        swish_response.code, 
+                        swish_response.message, 
+                        swish_response.additional_info));
+                    if !swish_response.additional_info.is_empty() {
+                        err_str.push_str(&format!("\n\t\tAdditional info: {}", swish_response.additional_info));
+                    }
+                }
+                write!(f, "{err_str}")
+            }
+        }
     }
 }
 
 impl SwishErrorResponse {
-    pub async fn from_response(resp: reqwest::Response) -> Option<Self> {
+    pub async fn to_error(resp: reqwest::Response) -> AppError {
         let status = resp.status();
-        match resp.json::<SwishErrorResponse>().await {
-            Ok(mut swish_error) => {
-                swish_error.http_status = Some(status);
-                Some(swish_error)
+        match resp.json::<Vec<SwishErrorResponse>>().await {
+            Ok(list) => {
+                SwishError::from(SwishErrorList { list, http_status: Some(status) }).into()
             },
-            Err(_) => None
+            Err(err) => ClientError::from(err).into()
         }
     }
 }
@@ -130,21 +154,22 @@ impl SwishErrorResponse {
 app_error_enum! {
     Database(DatabaseError(sqlx::Error)),
     Client(ClientError(reqwest::Error)),
-    // Actix(ActixError(actix_web::Error)),
     Auth(AuthError(&'static str, no_source)),
-    Swish(SwishError(SwishErrorResponse, no_source)),
+    Swish(SwishError(SwishErrorList, no_source)),
+    Generic(GenericError(&'static str, no_source))
 }
 
+#[allow(type_alias_bounds)] // Type checking not done for T: Responder
 pub type ApiResult<T: Responder> = Result<T, actix_web::Error>;
 
 macro_rules! match_error_variant {
     ($match:ident, $on_match:expr) => {
         match $match {
             AppError::Database(err) => $on_match(err),
-            //AppError::Actix(err) => $on_match(err),
             AppError::Client(err) => $on_match(err),
             AppError::Auth(err) => $on_match(err),
             AppError::Swish(err) => $on_match(err),
+            AppError::Generic(err) => $on_match(err)
         }
     };
 }

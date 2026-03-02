@@ -10,7 +10,7 @@ pub mod transactions;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, ResponseError, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
 use sqlx::SqlitePool;
 
-use crate::{AppError, AppState, auth, database::model::UserRow, error::{AppError, DatabaseError}, utils::{self, get_path}};
+use crate::{AppState, auth, database::model::UserRow, error::AppError, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 3] = [
