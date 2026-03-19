@@ -77,7 +77,7 @@
   </Item.Root>
   
   <div class="flex">
-    <Button href="/api/auth/logout" class="text-card-foreground">
+    <Button href="/api/auth/logout" rel="external" class="text-card-foreground">
       Logga ut
     </Button> 
     <Button href="/profil/radera-konto" variant="link" class="text-foreground">

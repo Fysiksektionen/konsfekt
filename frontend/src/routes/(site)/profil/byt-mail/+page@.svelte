@@ -26,6 +26,6 @@
   </div>
   <div class="flex gap-3">
     <Button variant="outline" href="/profil">Avbryt</Button>
-    <Button variant="secondary" href="/api/auth/change_email">Logga in med ny Gmail-address</Button>
+    <Button variant="secondary" href="/api/auth/change_email" rel="external">Logga in med ny Gmail-address</Button>
   </div>
 </div>

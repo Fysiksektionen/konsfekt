@@ -48,7 +48,7 @@ pub mod swish {
         }
     }
     
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, Debug)]
     #[allow(non_snake_case)]
     pub struct PaymentCallback {
         id: String,

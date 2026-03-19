@@ -37,8 +37,8 @@ pub async fn session_middleware(
     next: middleware::Next<BoxBody>
 ) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
     let path = req.path();
-    
-    if PATH_WHITELIST.contains(&path) {
+
+    if PATH_WHITELIST.contains(&path) || path.starts_with("/_app/") || path.starts_with("/uploads/") {
         return next.call(req).await;
     }
     
