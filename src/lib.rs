@@ -3,10 +3,10 @@ pub mod auth;
 pub mod routes;
 pub mod utils;
 pub mod model;
+pub mod error;
 
-use std::{collections::HashMap, env, fmt, fs};
+use std::{collections::HashMap, env, fs};
 
-use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use reqwest::{Certificate, Client, Identity};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
@@ -91,7 +91,7 @@ pub struct PermissionTable {
 impl PermissionTable {
     pub fn from(file_path: &str) -> Self {
         // We need permissions
-        let json_str = fs::read_to_string(&file_path).unwrap();
+        let json_str = fs::read_to_string(&file_path).expect(format!("Could not find file {}", file_path).as_str());
         let json: HashMap<String, Role> = serde_json::from_str(&json_str).unwrap();
         return PermissionTable { table: json };
     }
@@ -145,75 +145,3 @@ impl AppState {
         }
     }
 }
-
-#[derive(Debug)]
-pub enum AppError {
-    ClientError(reqwest::Error),
-    ClientHeaderError(reqwest::header::ToStrError),
-    DatabaseError(sqlx::Error),
-    ActixError(actix_web::Error),
-    GenericError(String),
-
-    BadRequest(String),
-
-    SessionError(String),
-
-    SwishError(String),
-}
-
-impl fmt::Display for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AppError::ActixError(err) => write!(f, "{err}"),
-            AppError::ClientError(err) => write!(f, "Client error: {err}"),
-            AppError::ClientHeaderError(err) => write!(f, "Client error: {err}"),
-            AppError::DatabaseError(err) => write!(f, "Database error: {err}"),
-            AppError::GenericError(err) => write!(f, "Generic error: {err}"),
-            AppError::SessionError(err) => write!(f, "Session error: {err}"),
-            AppError::BadRequest(err) => write!(f, "Bad request: {err}"),
-            
-            AppError::SwishError(err) => write!(f, "Swish error: {err}"),
-        }
-    }
-}
-
-impl ResponseError for AppError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            Self::ActixError(e) => e.as_response_error().status_code(),
-            Self::BadRequest(_) => StatusCode::BAD_REQUEST, // Maybe just use actix bad request
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
-        log::error!("{self}");
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-impl From<actix_web::Error> for AppError {
-    fn from(err: actix_web::Error) -> Self {
-        AppError::ActixError(err)
-    }
-}
-
-impl From<reqwest::Error> for AppError {
-    fn from(err: reqwest::Error) -> Self {
-        AppError::ClientError(err)
-    }
-}
-
-impl From<reqwest::header::ToStrError> for AppError {
-    fn from(err: reqwest::header::ToStrError) -> Self {
-        AppError::ClientHeaderError(err)
-    }
-}
-
-impl From<sqlx::Error> for AppError {
-    fn from(err: sqlx::Error) -> Self {
-        AppError::DatabaseError(err)
-    }
-}
-
-impl std::error::Error for AppError {}

@@ -44,8 +44,6 @@ pub struct TransactionItemRow {
     pub price: f32,
 }
 
-
-
 #[derive(sqlx::FromRow)]
 pub struct SwishPaymentRow {
     pub id: Uuid,

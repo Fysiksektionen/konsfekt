@@ -2,8 +2,9 @@ use sqlx::{QueryBuilder, Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{SwishPaymentRow, TransactionItemRow, TransactionRow};
+use crate::error::DatabaseError;
 use crate::model::{PendingTransaction, TransactionDetail, TransactionQuery, TransactionSummary};
-use crate::{AppError, Role};
+use crate::Role;
 
 use super::model::UserRow;
 use super::model::ProductRow;
@@ -12,7 +13,7 @@ use super::model::ProductRow;
 //          User
 //
 
-pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<UserRow, AppError> {
+pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<UserRow, DatabaseError> {
     let user_table_has_rows: bool = sqlx::query_scalar(r#"
         SELECT EXISTS(SELECT 1 FROM User)"#).fetch_one(pool).await?;
     
@@ -37,7 +38,7 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
     })
 }
 
-pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<UserRow, AppError> {
+pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<UserRow, DatabaseError> {
     let user: UserRow = sqlx::query_as(
         r#"
         SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
@@ -47,7 +48,7 @@ pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option
     Ok(user)
 }
 
-pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), AppError> {
+pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         UPDATE User SET name = ?, role = ?, balance = ?  
@@ -60,7 +61,7 @@ pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), AppErro
     Ok(())
 }
 
-pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<(), AppError> {
+pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         DELETE FROM User 
@@ -71,7 +72,7 @@ pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<(), AppError
     Ok(())
 }
 
-pub async fn update_user_name(pool: &SqlitePool, user_id: u32, new_name: &str) -> Result<(), AppError> {
+pub async fn update_user_name(pool: &SqlitePool, user_id: u32, new_name: &str) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         UPDATE User SET name = ? 
@@ -83,7 +84,7 @@ pub async fn update_user_name(pool: &SqlitePool, user_id: u32, new_name: &str) -
     Ok(())
 }
 
-pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f32) -> Result<(), AppError> {
+pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         UPDATE User SET balance = ? 
@@ -94,7 +95,7 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
     Ok(())
 }
 
-pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), AppError> {
+pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
     sqlx::query(
         r#"
@@ -106,7 +107,7 @@ pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<()
     Ok(())
 }
 
-pub async fn authorize_email_switch(pool: &SqlitePool, user_id: u32, access_token: &str) -> Result<(), AppError> {
+pub async fn authorize_email_switch(pool: &SqlitePool, user_id: u32, access_token: &str) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         UPDATE EmailSwitch SET access_token = ?
@@ -117,7 +118,7 @@ pub async fn authorize_email_switch(pool: &SqlitePool, user_id: u32, access_toke
     Ok(())
 }
 
-pub async fn email_switch_exists(pool: &SqlitePool, user_id: u32) -> Result<bool, AppError> {
+pub async fn email_switch_exists(pool: &SqlitePool, user_id: u32) -> Result<bool, DatabaseError> {
     let exists: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS (
@@ -131,7 +132,7 @@ pub async fn email_switch_exists(pool: &SqlitePool, user_id: u32) -> Result<bool
     return Ok(exists);
 }
 
-pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), AppError> {
+pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         DELETE FROM EmailSwitch
@@ -142,7 +143,7 @@ pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<
     Ok(())
 }
 
-pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<UserRow>, AppError> {
+pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<UserRow>, DatabaseError> {
     let users: Vec<UserRow> = sqlx::query_as(
         r#"
         SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
@@ -152,7 +153,7 @@ pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<Us
     Ok(users)
 }
 
-pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str, google_id: &str) -> Result<(), AppError> {
+pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str, google_id: &str) -> Result<(), DatabaseError> {
     let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
@@ -178,7 +179,7 @@ pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &
 //          Shop
 //
 
-pub async fn create_product(pool: &SqlitePool, mut product: ProductRow) -> Result<ProductRow, AppError> {
+pub async fn create_product(pool: &SqlitePool, mut product: ProductRow) -> Result<ProductRow, DatabaseError> {
     let id: u32 = sqlx::query_scalar(
         r#"
         INSERT INTO Product (name, price, description, flags)
@@ -196,7 +197,7 @@ pub async fn create_product(pool: &SqlitePool, mut product: ProductRow) -> Resul
     Ok(product)
 }
 
-pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<ProductRow, AppError> {
+pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<ProductRow, DatabaseError> {
     let product: ProductRow = sqlx::query_as(
         r#"
         SELECT id, name, price, description, stock, flags
@@ -206,7 +207,7 @@ pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<ProductRow, AppEr
     Ok(product)
 }
 
-pub async fn get_products(pool: &SqlitePool) -> Result<Vec<ProductRow>, AppError> {
+pub async fn get_products(pool: &SqlitePool) -> Result<Vec<ProductRow>, DatabaseError> {
     let products: Vec<ProductRow> = sqlx::query_as(
         r#"
         SELECT id, name, price, description, stock, flags
@@ -217,7 +218,7 @@ pub async fn get_products(pool: &SqlitePool) -> Result<Vec<ProductRow>, AppError
     Ok(products)
 }
 
-pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Result<(), AppError> {
+pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         UPDATE Product SET 
@@ -240,7 +241,7 @@ pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Resu
     Ok(())
 }
 
-pub async fn update_product_stock(pool: &SqlitePool, id: u32, stock: Option<i32>) -> Result<(), AppError> {
+pub async fn update_product_stock(pool: &SqlitePool, id: u32, stock: Option<i32>) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         UPDATE Product SET 
@@ -255,7 +256,7 @@ pub async fn update_product_stock(pool: &SqlitePool, id: u32, stock: Option<i32>
     Ok(())
 }
 
-pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), AppError> {
+pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         DELETE FROM Product 
@@ -267,7 +268,7 @@ pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), AppError> 
 }
 
 /// Returns the created transaction's id 
-pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransaction) -> Result<u32, AppError> {
+pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransaction) -> Result<u32, DatabaseError> {
     let id: u32 = sqlx::query_scalar(
         r#"
         INSERT INTO StoreTransaction (user, amount, datetime)
@@ -293,7 +294,7 @@ pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransacti
     Ok(id)
 }
 
-pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<(), AppError> {
+pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         DELETE FROM StoreTransaction 
@@ -304,7 +305,7 @@ pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Resul
     Ok(())
 }
 
-pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, AppError> {
+pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, DatabaseError> {
     let transaction: TransactionRow = sqlx::query_as(r#"
         SELECT id, user, amount, datetime
         FROM StoreTransaction
@@ -314,7 +315,7 @@ pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<T
     Ok(transaction)
 }
 
-pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, user: UserRow) -> Result<TransactionDetail, AppError> {
+pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, user: UserRow) -> Result<TransactionDetail, DatabaseError> {
     let transaction = get_transaction(pool, transaction_id).await?;
 
     let mut detailed_transaction = TransactionDetail::create(transaction, user);
@@ -334,7 +335,7 @@ const PAYMENT_KEYWORDS: [&str; 4] = [
     "swish", "insättning", "deposit", "payment"
 ];
 
-pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, AppError> {
+pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, DatabaseError> {
     let mut builder = QueryBuilder::new(r#"
         SELECT st.id, u.email AS user_email, st.amount, st.datetime
         FROM StoreTransaction st
@@ -429,7 +430,7 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
 //          Payment
 //
 
-pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRow) -> Result<(), AppError> {
+pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRow) -> Result<(), DatabaseError> {
 
     sqlx::query(
         r#"

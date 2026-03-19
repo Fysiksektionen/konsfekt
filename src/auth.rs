@@ -1,11 +1,11 @@
-use actix_web::cookie::Cookie;
+use actix_web::{cookie::Cookie, http::StatusCode};
 use rand::{rngs::OsRng, TryRngCore};
 use sha2::{Digest, Sha256};
 use sqlx::{Result, SqlitePool};
 use time::{Duration, OffsetDateTime};
 use hex;
 
-use crate::{database::{crud, model}, AppError};
+use crate::{database::{crud, model}, error::{AppError, AuthError, DatabaseError}};
 
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
@@ -46,25 +46,40 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
 
 pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::UserRow, AppError> {
     let Some(token) = parse_auth_cookie(cookie) else {
-        return Err(AppError::GenericError(String::from("Couldn't parse cookie")));
+        // Or should it return internal server error becuase authentication has already been done
+        // by middleware?
+        return Err(AuthError::new("Could not parse auth cookie")
+            .with_status(StatusCode::BAD_REQUEST)
+            .into()
+        );
     };
 
-    let session = get_session(pool, token.id).await?;
+    let session = get_session(pool, token.id).await.map_err(|err| DatabaseError::from(err))?;
 
     match session {
         Some(session) => {
             let id = session.user;
-            return crud::get_user(pool, Some(id), None).await;
+            let user = crud::get_user(pool, Some(id), None).await?;
+            return Ok(user);
         },
-        None => Err(AppError::SessionError(String::from("Unable to get session")))
+        None => {
+            return Err(
+                AuthError::new("Session not found or expired")
+                    .with_status(StatusCode::UNAUTHORIZED)
+                    .into()
+            );
+        }
     }
 }
 
-pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<(Session, String), AppError> {
+pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<(Session, String), AppError> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
     let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
-        _ => return Err(AppError::GenericError("Could not generate random string".to_string()))
+        _ => {
+            log::debug!("Could not generate random string for session creation");
+            return Err(AuthError::new("Could not create session").into());
+        }
     };
     let secret_hash = hex::encode(Sha256::digest(secret.clone()));
 
@@ -77,12 +92,12 @@ pub async fn create_session(pool: &SqlitePool, user_id: u32) -> sqlx::Result<(Se
     sqlx::query("
         INSERT INTO Session (id, secret_hash, created_at, user)
         VALUES (?, ?, ?, ?)").bind(id).bind(secret_hash).bind(now).bind(user_id)
-        .execute(pool).await?;
+        .execute(pool).await.map_err(|err| DatabaseError::from(err))?;
     
     return Ok((session, token));
 }
 
-pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>, AppError> {
+pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>, DatabaseError> {
     let session = get_session(pool, token.id).await?;
 
     if let Some(session) = session {
@@ -97,14 +112,14 @@ pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<
     Ok(None)
 }
 
-pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<(), AppError> {
+pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<(), DatabaseError> {
     sqlx::query("
         DELETE FROM Session
         WHERE id = ?").bind(session.id.clone()).execute(pool).await?;
     Ok(())
 }
 
-async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Session>, AppError> {
+async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Session>, DatabaseError> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     
     let session: Option<Session> = sqlx::query_as("
@@ -124,7 +139,7 @@ async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Ses
     }
 }
 
-async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<(), AppError> {
+async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<(), DatabaseError> {
     sqlx::query("DELETE FROM Session WHERE id = ?").bind(session_id).execute(pool).await?;
     Ok(())
 }
