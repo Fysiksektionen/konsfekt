@@ -1,7 +1,7 @@
-use actix_web::{HttpResponse, Responder, get, web::{self, Data}};
+use actix_web::{get, web::{self, Data}};
 use sqlx::{Database, Encode, QueryBuilder, Type, query::{QueryAs, QueryScalar}};
 
-use crate::{AppError, AppState};
+use crate::{AppState, error::{ApiResult, DatabaseError}};
 
 #[derive(serde::Deserialize)]
 pub struct TimeRange {
@@ -63,7 +63,7 @@ impl <'args, DB: Database>TimeRangeBindable for QueryBuilder<'args, DB>
 type QAs<'q, DB, O> = QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>;
 type QScalar<'q, DB, O> = QueryScalar<'q, DB, O, <DB as Database>::Arguments<'q>>;
 
-impl <'q, DB: Database, O>TimeRangeBindable for QAs<'q, DB, O> 
+impl <'q, DB: Database, O>TimeRangeBindable for QAs<'q, DB, O>
     where i64: Encode<'q, DB> + Type<DB>,
 {
     fn bind_time_range(self, time_range: TimeRange) -> Self {
@@ -76,7 +76,7 @@ impl <'q, DB: Database, O>TimeRangeBindable for QAs<'q, DB, O>
     }
 }
 
-impl <'q, DB: Database, O>TimeRangeBindable for QScalar<'q, DB, O> 
+impl <'q, DB: Database, O>TimeRangeBindable for QScalar<'q, DB, O>
     where i64: Encode<'q, DB> + Type<DB>,
 {
     fn bind_time_range(self, time_range: TimeRange) -> Self {
@@ -97,7 +97,7 @@ struct BestSellingProduct {
 }
 
 #[get("/api/stats/best_selling_product")]
-pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<TimeRange>) -> ApiResult<web::Json<Option<BestSellingProduct>>> {
     let sql = format!(r#"
         SELECT
             p.id,
@@ -111,11 +111,12 @@ pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<
         ORDER BY total_sold DESC
         LIMIT 1
         "#, time_range.as_predicate("WHERE "));
-    
-    let product: Option<BestSellingProduct> = sqlx::query_as(&sql)
-        .bind_time_range(time_range.0).fetch_optional(&state.db).await?;
 
-    Ok(HttpResponse::Ok().json(product))
+    let product: Option<BestSellingProduct> = sqlx::query_as(&sql)
+        .bind_time_range(time_range.0).fetch_optional(&state.db).await
+        .map_err(DatabaseError::from)?;
+
+    Ok(web::Json(product))
 }
 
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
@@ -125,7 +126,7 @@ struct PurchasesInfo {
 }
 
 #[get("/api/stats/purchases")]
-pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>) -> ApiResult<web::Json<PurchasesInfo>> {
     let sql = format!(r#"
         SELECT
             COUNT(*) AS count,
@@ -133,9 +134,11 @@ pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>)
         FROM StoreTransaction
         WHERE amount <= 0 {}
         "#, time_range.as_predicate("AND "));
-    let transactions: PurchasesInfo = sqlx::query_as(&sql).bind_time_range(time_range.0).fetch_one(&state.db).await?;
-    
-    Ok(HttpResponse::Ok().json(transactions))
+    let transactions: PurchasesInfo = sqlx::query_as(&sql)
+        .bind_time_range(time_range.0).fetch_one(&state.db).await
+        .map_err(DatabaseError::from)?;
+
+    Ok(web::Json(transactions))
 }
 
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
@@ -145,7 +148,7 @@ struct DepositsInfo {
 }
 
 #[get("/api/stats/deposits")]
-pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) -> Result<impl Responder, AppError> {
+pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) -> ApiResult<web::Json<DepositsInfo>> {
     let sql = format!(r#"
         SELECT
             COALESCE(SUM(st.amount), 0.0) AS total,
@@ -153,9 +156,11 @@ pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) 
         FROM StoreTransaction st
         WHERE st.amount > 0 {}
         "#, time_range.as_predicate("AND "));
-    let info: DepositsInfo = sqlx::query_as(&sql).bind_time_range(time_range.0).fetch_one(&state.db).await?;
+    let info: DepositsInfo = sqlx::query_as(&sql)
+        .bind_time_range(time_range.0).fetch_one(&state.db).await
+        .map_err(DatabaseError::from)?;
 
-    Ok(HttpResponse::Ok().json(info))
+    Ok(web::Json(info))
 }
 
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
@@ -166,7 +171,7 @@ struct CustomerInfo {
 }
 
 #[get("/api/stats/customers")]
-pub async fn customers(state: Data<AppState>) -> Result<impl Responder, AppError> {
+pub async fn customers(state: Data<AppState>) -> ApiResult<web::Json<CustomerInfo>> {
     let sql = r#"
         SELECT
             COUNT(*) AS count,
@@ -174,7 +179,8 @@ pub async fn customers(state: Data<AppState>) -> Result<impl Responder, AppError
             SUM(private_transactions) AS private_transactions
         FROM User
         "#;
-    let info: CustomerInfo = sqlx::query_as(sql).fetch_one(&state.db).await?;
-    
-    Ok(HttpResponse::Ok().json(info))
+    let info: CustomerInfo = sqlx::query_as(sql).fetch_one(&state.db).await
+        .map_err(DatabaseError::from)?;
+
+    Ok(web::Json(info))
 }

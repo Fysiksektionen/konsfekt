@@ -1,21 +1,13 @@
-use actix_web::{HttpRequest, HttpResponse, Responder, get, post, web::{self, Data}};
-use sqlx::SqlitePool;
-use uuid::Uuid;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-
-
 pub enum PaymentMethod {
     Swish,
 }
 
 pub mod swish {
-    use actix_web::{HttpRequest, Responder, post, web::{self, Data}};
-    use reqwest::{Client, header::{CONTENT_TYPE, HeaderMap, HeaderValue}};
-    use sqlx::database;
+    use actix_web::{HttpRequest, post, web::{self, Data}};
+    use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue};
     use uuid::Uuid;
 
-    use crate::{AppError, AppState, database::{crud, model::SwishPaymentRow}, routes::user_from_cookie};
+    use crate::{AppState, database::{crud, model::SwishPaymentRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishError, SwishErrorResponse}, return_err, routes::user_from_cookie};
 
 
     const PAYEE_NUMBER: &str = "1234679304"; // Should be env
@@ -47,7 +39,7 @@ pub mod swish {
             }
         }
     }
-    
+
     #[derive(serde::Deserialize)]
     #[allow(non_snake_case)]
     pub struct PaymentCallback {
@@ -80,48 +72,40 @@ pub mod swish {
         Pending, Paid
     }
 
-    async fn create_request(state: &Data<AppState>, amount: f32) -> Result<PaymentRequest, AppError> {
+    async fn create_request(state: &Data<AppState>, amount: f32) -> Result<web::Json<PaymentRequest>, AppError> {
         let id: Uuid = Uuid::new_v4();
         let pro = PaymentRequestObject::new(state, amount);
 
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-        // Skicka till swish
         let response = state.client
             .put(format!("{}{}", SWISH_REQUEST_URL, id.simple().to_string().to_uppercase()))
             .headers(headers)
             .json(&pro)
-            .send().await?;
+            .send().await.map_err(ClientError::from)?;
 
         let status = response.status();
 
         if status == 201 {
-            return match (
-                response.headers().get("PaymentRequestToken"),
-                response.headers().get("Location")
-            ) {
-                (Some(token), Some(location)) => Ok(PaymentRequest {
-                    id: id,
-                    token: String::from(token.to_str()?),
-                    location: String::from(location.to_str()?)
-                }),
-                _ => Err(AppError::SwishError(String::from("Swish is bad at coding, idk"))),
-            }
-        } else {
-            if let Ok(text) = response.text().await {
-                println!("{:?}", text)
+            let token = response.headers().get("PaymentRequestToken").map(|t| t.to_str().ok()).flatten();
+            let location = response.headers().get("Location").map(|l| l.to_str().ok()).flatten();
+            return match (token, location) {
+                (Some(token), Some(location)) => {
+                    Ok(web::Json(PaymentRequest {
+                        id,
+                        token: String::from(token),
+                        location: String::from(location),
+                    }))
+                },
+                _ => Err(GenericError::new("Could not find/parse Swish response token or location").into())
             }
         }
-        
-
-        return Err(AppError::SwishError(String::from(format!("{}", status))));
-
+        Err(SwishErrorResponse::to_error(response).await.into())
     }
 
-    async fn handle_callback(payment_callback: PaymentCallback) -> Result<(), AppError>{
+    async fn handle_callback(payment_callback: PaymentCallback) -> Result<(), AppError> {
         println!("CALLBACK!!!");
-        
         Ok(())
     }
 
@@ -133,11 +117,11 @@ pub mod swish {
     struct CreatePaymentRequestResponse { token: String }
 
     #[post("/api/payment/swish/create_payment_request")]
-    pub async fn create_payment_request(state: Data<AppState>, req: HttpRequest, query: web::Query<CreatePaymentRequestQuery>) -> Result<impl Responder, AppError> {
+    pub async fn create_payment_request(state: Data<AppState>, req: HttpRequest, query: web::Query<CreatePaymentRequestQuery>) -> ApiResult<web::Json<CreatePaymentRequestResponse>> {
         let user = user_from_cookie(&state.db, &req).await?;
-        
+
         if query.amount < 30.0 {
-            return Err(AppError::BadRequest(String::from("amount < 30 kr")))
+            return_err!(actix_web::error::ErrorBadRequest("amount < 30 kr"));
         }
 
         let payment_request = create_request(&state, query.amount).await?;
@@ -146,21 +130,17 @@ pub mod swish {
             user: user.id,
             status: Status::Pending,
             token: payment_request.token.clone(),
-            location: payment_request.location,
+            location: payment_request.location.clone(),
         }).await?;
 
         Ok(web::Json(CreatePaymentRequestResponse {
-            token: payment_request.token
+            token: payment_request.token.clone()
         }))
     }
 
     #[post("/api/payment/swish/callback")] // Remember to change CALLBACK_URL
-    pub async fn swish_callback(callback: web::Json<PaymentCallback>) -> Result<(), AppError> {
+    pub async fn swish_callback(callback: web::Json<PaymentCallback>) -> ApiResult<()> {
         handle_callback(callback.into_inner()).await?;
         Ok(())
     }
-
-
 }
-
-
