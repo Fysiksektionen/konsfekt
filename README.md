@@ -3,7 +3,8 @@ Dependencies:
 - rust
 - npm
 
-### Setup
+### Setup Google
+
 Get Google OAuth client credentials from [Google](https://console.developers.google.com/). You will need a client id and a client secret.
 Make sure to add `http://127.0.0.1:8080` as an Authorized JavaScript origin and `http://127.0.0.1:8080/api/auth/google/callback`
 as an Authorized redirect URI.
@@ -14,6 +15,9 @@ unless using a tunneling service.
 Create a `.env` from the `template.env` file with the following fields filled in
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
+
+### Setup Swish
+TODO: Document
 
 ### Frontend
 The following commands need to be run inside the `frontend` directory.
@@ -32,6 +36,22 @@ The following commands need to be run inside the root directory.
 
 > E.g `/admin` will be accessible with a normal account.
 
+### Tunneling - Develop with HTTPS 
+In order to test stuff like Swish you need the app running with a secure HTTP connection. 
+You can accomplish this by using a tunneling service such as serveo.net
+
+1. Create an account at serveo to get a persistent domain.
+2. Add that domain as the `SITE_DOMAIN` env variable.
+3. Setup that domain in the Google OAuth Client
+4. Build the frontend
+5. Run the backend in `--release` mode
+6. ssh into the tunneling service and forward `0.0.0.0:8080` to Serveo's persistent domain
+
+Example:
+```bash
+$ ssh -R konsfekt:80:0.0.0.0:8080 serveo.net
+Forwarding HTTP traffic from https://konsfekt.serveousercontent.com
+```
 
 ## Docker
 Dependencies:
