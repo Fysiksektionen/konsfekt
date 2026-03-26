@@ -59,6 +59,10 @@ To get started first ensure you have all the [prerequisites](https://v2.tauri.ap
 
 To run the app as a dev server use `npx tauri dev`.
 
+Before building the app you need to create the file `.env.tauri` inside the `frontend` directory. Set the variable `VITE_API_URL` to the same value as `SITE_DOMAIN` in `.env`.
+
+Build the app with `npx tauri build`
+
 ## Docker
 Dependencies:
 - docker (docker compose)

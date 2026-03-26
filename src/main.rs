@@ -47,6 +47,9 @@ async fn main() -> std::io::Result<()> {
         if env.is_debug {
             cors = cors.allowed_origin(&env_clone.frontend_url);
         }
+        cors = cors
+            .allowed_origin("tauri://localhost")
+            .allowed_origin("http://tauri.localhost");
         let mut app = App::new()
             .wrap(middleware::from_fn(routes::session_middleware))
             .wrap(middleware::from_fn(routes::permission_middleware))

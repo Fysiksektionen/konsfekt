@@ -18,6 +18,15 @@ export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?:
 
 type svelteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+/**
+ * Prepends the backend base URL to a path.
+ * In dev, `VITE_API_URL` is empty and requests go through the Vite proxy.
+ * In production (Tauri), it resolves to the full URL e.g. `https://f.kth.se/konsfekt/api/...`.
+ */
+function apiUrl(path: string): string {
+    return (import.meta.env.VITE_API_URL ?? "") + path;
+}
+
 export async function getUser(fetch: svelteFetch) {
     if (import.meta.env.SSR) {
         return {
@@ -26,7 +35,7 @@ export async function getUser(fetch: svelteFetch) {
             balance: 0
         }
     }
-    const response = await fetch("/api/get_user");
+    const response = await fetch(apiUrl("/api/get_user"));
     if (response.status == 401) {
         console.log(response)
         console.log(await response.text())
@@ -101,7 +110,7 @@ export async function getProducts(fetch: svelteFetch, onlyAvailable: boolean) {
     if (import.meta.env.SSR) {
         return { products: [] }
     }
-    let response = await fetch('/api/get_products');
+    let response = await fetch(apiUrl('/api/get_products'));
     if (!response.ok) {
         throw error(response.status, response.statusText);
     }
@@ -164,7 +173,7 @@ export function updateSearchStore<T extends object>(store: SearchStore<T>, newDa
 }
 
 export async function fetchJSON(fetch: svelteFetch, url: string) {
-    const resp = await fetch(url);
+    const resp = await fetch(apiUrl(url));
     if (!resp.ok) {
         if (resp.status == 404) throw error(resp.status, url)
         throw error(resp.status, resp.statusText);
@@ -183,6 +192,6 @@ export async function backendPOST(endpoint: string, payload: any, json: boolean)
     } else {
         options.body = payload;
     }
-    return fetch("/api" + endpoint, options)
+    return fetch(apiUrl("/api" + endpoint), options)
 }
 
