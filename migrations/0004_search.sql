@@ -9,7 +9,7 @@ CREATE VIRTUAL TABLE "TransactionFts" USING fts5 (
 );
 
 -- Automatic updates of fts table
-CREATE TRIGGER "InsertTransactionItemTrigger" 
+CREATE TRIGGER "InsertTransactionItemTrigger"
     AFTER INSERT ON "TransactionItem"
 BEGIN
     INSERT INTO "TransactionFts" (transaction_id, product_name)

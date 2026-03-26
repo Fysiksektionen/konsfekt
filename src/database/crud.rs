@@ -398,11 +398,9 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
                 (terms, payment_kw)
             });
         
-        let normalized_search_term = terms.join(" ");
-
-        if !normalized_search_term.trim().is_empty() {
+        for term in &terms {
             builder.push(" AND EXISTS (SELECT 1 FROM TransactionFts WHERE transaction_id = st.id");
-            builder.push(" AND TransactionFts MATCH ").push_bind(normalized_search_term);
+            builder.push(" AND TransactionFts MATCH ").push_bind(term.clone());
             builder.push(")");
         }
 
