@@ -100,6 +100,9 @@ async fn main() -> std::io::Result<()> {
 
         if env.static_frontend {
             app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
+               .default_service(actix_web::web::get().to(|| async {
+                    actix_files::NamedFile::open("./frontend/build/index.html")
+               }))
         } else {
             app
         }
