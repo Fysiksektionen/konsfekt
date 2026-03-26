@@ -43,14 +43,18 @@ pub async fn session_middleware(
     }
     
     match auth::parse_auth_cookie(req.cookie(auth::AUTH_COOKIE)) {
-
         // Cookie not found
-        None => if path != get_path(&state, LOGIN_PATH) { Ok(redirect_response(state, req, LOGIN_PATH)) }
-                else { next.call(req).await }
-        
+        None => {
+            if path.starts_with("/api/") {
+                Err(actix_web::error::ErrorUnauthorized("No cookie found"))
+            } else if path != get_path(&state, LOGIN_PATH) {
+                Ok(redirect_response(state, req, LOGIN_PATH))
+            } else {
+                next.call(req).await
+            }
+        },
         Some(token) => {
             match auth::validate_session(&state.db, token).await {
-
                 // Validation Good
                 Ok(Some(session)) => {
                     req.extensions_mut().insert(session.clone());
@@ -59,14 +63,17 @@ pub async fn session_middleware(
                     };
                     next.call(req).await
                 }
-
                 // Validation Bad
                 Ok(None) => {
                     match req.cookie(auth::AUTH_COOKIE) {
                         Some(mut cookie) => cookie.make_removal(),
                         None => {},
                     }
-                    Ok(redirect_response(state, req, LOGIN_PATH))
+                    if path.starts_with("/api/") {
+                        Err(actix_web::error::ErrorUnauthorized("Could not validate session"))
+                    } else {
+                        Ok(redirect_response(state, req, LOGIN_PATH))
+                    }
                 },
                 Err(err) => Err(actix_web::error::ErrorInternalServerError(err.to_string())),
             }
