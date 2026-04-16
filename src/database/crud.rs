@@ -429,11 +429,10 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
 //
 
 pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRow) -> Result<(), DatabaseError> {
-
     sqlx::query(
         r#"
         INSERT INTO SwishPayment (id, user, status, token, location)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
         "#
     ).bind(row.id)
     .bind(row.user)
