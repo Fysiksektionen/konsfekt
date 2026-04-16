@@ -4,6 +4,7 @@ pub mod routes;
 pub mod utils;
 pub mod model;
 pub mod error;
+pub mod args;
 
 use std::{collections::HashMap, env, fs};
 
@@ -22,24 +23,14 @@ pub struct EnvironmentVariables {
     pub permission_table_path: String,
 }
 
-// Prod (always 0.0.0.0)
-// - caddy locally
-// - caddy other
-//
-// Dev
-// - local 
-// - lan
-
 impl EnvironmentVariables {
-    pub fn new() -> Self {
+
+    pub fn from_args(args: args::Args) -> Self {
         let _ = dotenv::dotenv();
-        let mut static_frontend = env::var("STATIC_FRONTEND").unwrap_or("true".into())
-            .parse::<bool>().unwrap_or(false);
+
         let is_debug = cfg!(debug_assertions);
-        if !is_debug {
-            // --release mode uses prebuilt frontend
-            static_frontend = true;
-        }
+        let static_frontend = args.mode == args::Mode::Tunnel || args.mode == args::Mode::Prod || args.static_frontend;
+
         EnvironmentVariables {
             is_debug,
             static_frontend,
@@ -48,10 +39,10 @@ impl EnvironmentVariables {
                 true => String::from("/"),
                 false => String::from("http://127.0.0.1:5173"),
             },
-            site_domain: match is_debug {
-                // If not debug, use specified domain
-                true => String::from("http://127.0.0.1:8080"),
-                false => env::var("SITE_DOMAIN").unwrap(),
+            site_domain: match args.mode {
+                args::Mode::Local => String::from("http://127.0.0.1:8080"),
+                args::Mode::Prod => env::var("PRODUCTION_DOMAIN").unwrap(),
+                args::Mode::Tunnel => env::var("TUNNEL_DOMAIN").unwrap(),
             },
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
