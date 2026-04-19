@@ -101,7 +101,7 @@ export async function undoTransaction(transactionID: number) {
       invalidateAll();
       toast.success("Köp ångrat");
     } else {
-      toast.error("kunde inte ångra köp: " + response.statusText);
+      toast.error("Kunde inte ångra köp: " + await response.text());
     }
   }
 

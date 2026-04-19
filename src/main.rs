@@ -83,8 +83,12 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
         .service(routes::user::update_user)
         .service(routes::user::set_username)
         .service(routes::user::get_users)
-        .service(routes::user::get_transactions)
-        .service(routes::user::get_detailed_transaction)
+        .service(routes::user::unlink_transactions)
+        .service(routes::user::set_user_flags)
+
+        // Transaction API
+        .service(routes::transactions::get_transactions)
+        .service(routes::transactions::get_detailed_transaction)
 
         // Product API
         .service(routes::products::create_product)

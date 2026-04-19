@@ -98,7 +98,7 @@ impl ProductFlags {
 }
 
 pub struct PendingTransaction {
-    pub user: u32,
+    pub user: Option<u32>, // None if user has private_transactions
     pub amount: f32,
     pub products: Vec<(ProductRow, u32)>
 }
@@ -126,7 +126,7 @@ impl From<TransactionItemRow> for TransactionItem {
 pub struct TransactionDetail {
     pub id: u32,
     pub amount: f32,
-    pub user: UserResponse,
+    pub user: Option<UserResponse>, // None if user has private_transactions
     pub datetime: i64,
     items: Vec<TransactionItem>
 }
@@ -147,10 +147,14 @@ impl TransactionDetail {
     }
 
     pub fn create(transaction: TransactionRow, user: UserRow) -> Self {
+        let user_response = match user.private_transactions {
+            true => None,
+            false => Some(UserResponse::from(user))
+        };
         TransactionDetail {
             id: transaction.id,
             amount: transaction.amount,
-            user: UserResponse::from(user),
+            user: user_response,
             datetime: transaction.datetime,
             items: Vec::new()
         }

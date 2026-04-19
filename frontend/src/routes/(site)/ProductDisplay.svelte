@@ -7,7 +7,7 @@
     import { toast } from "svelte-sonner";
     import { goto, invalidateAll } from "$app/navigation";
 
-  let { product, addedToCart = $bindable(0) } = $props();
+  let { user, product, addedToCart = $bindable(0) } = $props();
 
   async function markSoldOut() {
     let response = await backendPOST("/mark_sold_out", { id: Number(product.id) }, true);
@@ -24,12 +24,12 @@
     if (response.ok) {
       let transactionID = await response.json();
       invalidateAll();
-      toast.success(product.name + " köpt.", {
-          action: {
-            label: "Ångra",
-            onClick: () => undoTransaction(transactionID.transaction_id)
-          }
-        });
+      toast.success(product.name + " köpt.", user.private_transactions ? {} : {
+        action: {
+          label: "Ångra",
+          onClick: () => undoTransaction(transactionID.transaction_id)
+        }
+      });
     } else if (response.status == 402) {
       toast.error("Du har inte tillräckligt saldo");
     } else {

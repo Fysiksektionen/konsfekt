@@ -13,9 +13,7 @@ CREATE TRIGGER "InsertTransactionItemTrigger"
     AFTER INSERT ON "TransactionItem"
 BEGIN
     INSERT INTO "TransactionFts" (transaction_id, product_name)
-    SELECT NEW.transaction_id, NEW.name
-    FROM StoreTransaction st
-    WHERE st.id = NEW.transaction_id;
+    VALUES (NEW.transaction_id, NEW.name);
 END;
 
 CREATE TRIGGER "InsertStoreTransaction"
@@ -32,21 +30,19 @@ CREATE TRIGGER "UpdateUserNameTrigger"
     AFTER UPDATE OF name ON "User"
     WHEN OLD.name != NEW.name
 BEGIN
-    INSERT INTO "TransactionFts" (transaction_id, user_id, username)
-    SELECT st.id, NEW.id, NEW.name
-    FROM StoreTransaction st
-    WHERE st.user = NEW.id;
-END; 
+    UPDATE "TransactionFts"
+    SET username = NEW.name
+    WHERE user_id = NEW.id;
+END;
 
 -- User can change email, link new email to all previous transactions made by user
 CREATE TRIGGER "UpdateUserEmailTrigger"
     AFTER UPDATE OF email ON "User"
     WHEN OLD.email != NEW.email
 BEGIN
-    INSERT INTO "TransactionFts" (transaction_id, user_id, user_email)
-    SELECT st.id, NEW.id, NEW.email
-    FROM StoreTransaction st
-    WHERE st.user = NEW.id;
+    UPDATE "TransactionFts"
+    SET user_email = NEW.email
+    WHERE user_id = NEW.id;
 END; 
 
 CREATE TRIGGER "DeleteTransactionTrigger" 

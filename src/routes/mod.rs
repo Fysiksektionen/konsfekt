@@ -7,7 +7,7 @@ pub mod debug;
 pub mod payment;
 pub mod transactions;
 
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, ResponseError, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
 use sqlx::SqlitePool;
 
 use crate::{AppState, auth, database::model::UserRow, error::AppError, utils::{self, get_path}};

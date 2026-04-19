@@ -128,7 +128,10 @@ pub async fn buy_single_product(state: Data<AppState>, req: HttpRequest, product
     }
 
     let transaction = PendingTransaction {
-        user: user.id,
+        user: match user.private_transactions {
+            true => None,
+            false => Some(user.id)
+        },
         products: vec![(product.clone(), 1)],
         amount: -product.price
     };
@@ -171,7 +174,10 @@ pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Js
     }
 
     let transaction = PendingTransaction {
-        user: user.id,
+        user: match user.private_transactions {
+            true => None,
+            false => Some(user.id)
+        },
         products: products.clone(),
         amount: -total_price
     };

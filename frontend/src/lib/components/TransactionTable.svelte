@@ -49,7 +49,7 @@
       {#each transactions as transaction}
         <Table.Row onclick={() => onTransactionClicked(transaction.id)}>
           {#if isAdminTable}
-            <Table.Cell>{transaction.user_email}</Table.Cell>
+            <Table.Cell>{transaction.user_email || "Anonymt köp"}</Table.Cell>
           {/if}
           <Table.Cell>{transaction.amount > 0 ? 'Insättning' : "Köp"}</Table.Cell>
           <Table.Cell class="font-medium text-blue-500">

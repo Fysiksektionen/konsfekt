@@ -3,17 +3,28 @@
   import { Input } from '$lib/components/ui/input';
 	import type { PageProps } from './$types';
   import * as Item from "$lib/components/ui/item/index.js";
+  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
     import { backendPOST } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { invalidateAll } from '$app/navigation';
     import TransactionTable from '$lib/components/TransactionTable.svelte';
+    import { toast } from 'svelte-sonner';
 
 	let { data }: PageProps = $props();
   
   let username = $state(data.user.name);
   
   const isAdmin = ["admin", "maintainer"].includes(data.user.role);
+
+  let privateTransactionsEnabled = $state(data.user.private_transactions)
+
+  async function changeUserFlag(flag: "on_leaderboard" | "private_transactions", value: boolean) {
+    let resp = await backendPOST(`/set_user_flags?${flag}=${value}`, {}, true);
+    if (!resp.ok) {
+      toast.warning("Kunde inte uppdatera: " + flag)
+    }
+  }
 
  async function setUsername() {
    let resp = await backendPOST("/set_username", {name: username}, true);
@@ -89,15 +100,20 @@
     <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Köp- och insättningshistorik</h3> 
     <Item.Root variant="outline" class="max-w-[500px]">
       <Item.Content>
-        <Item.Title>Anonyma köp</Item.Title>
+        <Item.Title><a href="/om#anonyma-köp">Anonyma köp</a></Item.Title>
         <Item.Description>
           Vill du att dina köp <u>inte</u> ska kopplas till ditt namn?
         </Item.Description>
       </Item.Content>
       <Item.Actions>
-        <Switch/>
+        <Switch bind:checked={privateTransactionsEnabled} onclick={() => changeUserFlag("private_transactions", !privateTransactionsEnabled)}/>
       </Item.Actions>
     </Item.Root>
     <TransactionTable transactions={data.transactions} isAdminTable={false}/>
+    {#if data.transactions.length > 0}
+      <Button href="/profil/koppla-bort-transaktioner" variant="link" class="text-foreground">
+        Dissociera transaktioner från mitt konto
+      </Button>
+    {/if}
   </div>
 </div>

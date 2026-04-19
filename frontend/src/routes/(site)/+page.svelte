@@ -64,7 +64,7 @@
     <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Alla produkter</h3>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
       {#each data.products as product}
-        <ProductDisplay {product} bind:addedToCart={cart.products[product.id]}/>
+        <ProductDisplay user={data.user} {product} bind:addedToCart={cart.products[product.id]}/>
       {/each}
     </div>
   </div>

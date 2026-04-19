@@ -70,7 +70,8 @@ struct UpdateUserParams {
     id: u32,
     name: Option<String>,
     balance: Option<f32>,
-    role: Option<Role>
+    role: Option<Role>,
+
 }
 
 #[derive(Deserialize)]
@@ -82,6 +83,26 @@ struct ChangeUsernameParam {
 pub async fn set_username(state: Data<AppState>, req: HttpRequest, params: web::Json<ChangeUsernameParam>) -> ApiResult<()> { 
     let user = user_from_cookie(&state.db, &req).await?;
     crud::update_user_name(&state.db, user.id, &params.name).await?;
+
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct UserFlagsQueryParams {
+    private_transactions: Option<bool>,
+    on_leaderboard: Option<bool>
+}
+
+#[post("/api/set_user_flags")]
+pub async fn set_user_flags(state: Data<AppState>, req: HttpRequest, flags: web::Query<UserFlagsQueryParams>) -> ApiResult<()> {
+    let user = user_from_cookie(&state.db, &req).await?;
+
+    if let Some(private_transactions) = flags.private_transactions {
+        crud::set_private_transactions(&state.db, user.id, private_transactions).await?;
+    }
+    if let Some(on_leaderboard) = flags.on_leaderboard {
+        crud::set_on_leaderboard(&state.db, user.id, on_leaderboard).await?;
+    }
 
     Ok(())
 }
@@ -106,25 +127,11 @@ pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::J
     Ok(())
 }
 
-#[get("/api/get_detailed_transaction/{transaction_id}")]
-pub async fn get_detailed_transaction(state: Data<AppState>, req: HttpRequest, path: web::Path<u32>) -> ApiResult<Json<TransactionDetail>> {
+#[post("/api/unlink_transactions")]
+pub async fn unlink_transactions(state: Data<AppState>, req: HttpRequest) -> ApiResult<()> {
     let user = user_from_cookie(&state.db, &req).await?;
 
-    let transaction = crud::get_detailed_transaction(&state.db, *path, user).await?;
-    
-    Ok(Json(transaction))
-}
+    crud::unlink_transactions(&state.db, user.id).await?;
 
-#[post("/api/get_transactions")]
-pub async fn get_transactions(state: Data<AppState>, req: HttpRequest, query: web::Json<TransactionQuery>) -> ApiResult<Json<Vec<TransactionSummary>>> {
-    let user = user_from_cookie(&state.db, &req).await?;
-
-    let other_users_requested = query.user_ids.iter().any(|id| *id != user.id) || query.user_ids.is_empty();
-    if user.role == Role::User && other_users_requested {
-        return_err!(actix_web::error::ErrorUnauthorized("Cannot get other user's transactions"));
-    }
-
-    let transactions = crud::query_transactions(&state.db, query.0).await?;
-
-    Ok(Json(transactions))
+    Ok(())
 }

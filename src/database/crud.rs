@@ -1,10 +1,11 @@
-use sqlx::{QueryBuilder, Result, SqlitePool};
+use sqlx::{QueryBuilder, Result, SqlitePool, pool};
 use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{SwishPaymentRow, TransactionItemRow, TransactionRow};
 use crate::error::DatabaseError;
 use crate::model::{PendingTransaction, TransactionDetail, TransactionQuery, TransactionSummary};
 use crate::Role;
+use crate::routes::user;
 
 use super::model::UserRow;
 use super::model::ProductRow;
@@ -46,6 +47,28 @@ pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option
         WHERE id = ? OR google_id = ?
         "#).bind(user_id).bind(google_id).fetch_one(pool).await?;
     Ok(user)
+}
+
+pub async fn set_private_transactions(pool: &SqlitePool, user_id: u32, private_transactions: bool) -> Result<(), DatabaseError> {
+    sqlx::query(
+        r#"
+        UPDATE User SET private_transactions = ?
+        WHERE id = ?
+        "#)
+        .bind(private_transactions)
+        .bind(user_id).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn set_on_leaderboard(pool: &SqlitePool, user_id: u32, on_leaderboard: bool) -> Result<(), DatabaseError> {
+    sqlx::query(
+        r#"
+        UPDATE User SET on_leaderboard = ?
+        WHERE id = ?
+        "#)
+        .bind(on_leaderboard)
+        .bind(user_id).execute(pool).await?;
+    Ok(())
 }
 
 pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), DatabaseError> {
@@ -339,9 +362,11 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     let mut builder = QueryBuilder::new(r#"
         SELECT st.id, u.email AS user_email, st.amount, st.datetime
         FROM StoreTransaction st
-        JOIN User u ON u.id = st.user
+        LEFT JOIN User u ON u.id = st.user
         WHERE 1=1
         "#);
+    // LEFT JOIN will set user_email to NULL if StoreTransaction has user field set to NULL
+    // (private_transactions)
     
     // OR users
     if !query.user_ids.is_empty() {
@@ -422,6 +447,22 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     let transactions: Vec<TransactionSummary> = builder.build_query_as().fetch_all(pool).await?;
     
     Ok(transactions)
+}
+
+pub async fn unlink_transactions(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
+    sqlx::query(
+        r#"
+        UPDATE StoreTransaction
+        SET user = NULL
+        WHERE user = ?
+        "#).bind(user_id).execute(pool).await?;
+    sqlx::query(
+        r#"
+        DELETE FROM TransactionFts WHERE rowid IN (
+            SELECT rowid FROM TransactionFts WHERE user_id = ?
+        )
+        "#).bind(user_id).execute(pool).await?;
+    Ok(())
 }
 
 //
