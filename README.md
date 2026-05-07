@@ -77,6 +77,11 @@ Run the container with `docker compose up --build` (`--build` flag only needed t
 ## About
 
 ### Environment variables
+- `PRODUCTION_DOMAIN`, `TUNNEL_DOMAIN`
+
+`GOOGLE_CLIENT_ID`
+`GOOGLE_CLIENT_SECRET`
+
 - `STATIC_FRONTEND` tells the backend to serve a prebuilt frontend, only has effect in debug mode.
 
 ### Backend
@@ -90,3 +95,9 @@ The static files are compiled to a native app using [Tauri](https://v2.tauri.app
 
 ### Auth
 Session handling is done using principles from [lucia-auth](https://lucia-auth.com) with login done through Google.
+
+
+### HTTPS Tunneling
+```
+ssh -R konsfekt2:80:127.0.0.1:8080 serveo.net
+```
