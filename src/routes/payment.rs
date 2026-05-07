@@ -3,16 +3,24 @@ pub enum PaymentMethod {
 }
 
 pub mod swish {
-    use actix_web::{HttpRequest, post, web::{self, Data}};
+    use actix_web::{HttpRequest, HttpResponse, post, web::{self, Data}};
     use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue};
     use uuid::Uuid;
 
     use crate::{AppState, database::{crud, model::SwishPaymentRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishError, SwishErrorResponse}, return_err, routes::user_from_cookie};
 
-
-    const PAYEE_NUMBER: &str = "1234679304"; // Should be env
     const CALLBACK_URL: &str = "/api/payment/swish/callback"; // Remember to change post function
-    const SWISH_REQUEST_URL: &str = "https://mss.cpc.getswish.net/swish-cpcapi/api/v2/paymentrequests/";
+
+    struct SwishEndpoints {
+        payment_request: &'static str,
+    }
+
+    const SWISH_ENDPOINTS_SANDBOX: SwishEndpoints = SwishEndpoints { 
+        payment_request: "https://staging.getswish.pub.tds.tieto.com/swish-cpcapi/api/v2/paymentrequests/",
+    };
+    const SWISH_ENDPOINTS_MERCHANT: SwishEndpoints = SwishEndpoints { 
+        payment_request: "https://mss.cpc.getswish.net/swish-cpcapi/api/v2/paymentrequests/",
+     };
 
     #[derive(serde::Serialize)]
     #[allow(non_snake_case)]
@@ -29,7 +37,7 @@ pub mod swish {
     impl PaymentRequestObject {
         pub fn new(state: &Data<AppState>, amount: f32) -> Self {
             PaymentRequestObject {
-                payeeAlias: String::from(PAYEE_NUMBER),
+                payeeAlias: state.env.swish_number.clone(),
                 amount,
                 currency: String::from("SEK"),
                 callbackUrl: String::from(state.env.site_domain.clone() + CALLBACK_URL),
@@ -41,7 +49,7 @@ pub mod swish {
     }
 
     #[derive(serde::Deserialize, Debug)]
-    #[allow(non_snake_case)]
+    #[allow(non_snake_case, dead_code)]
     pub struct PaymentCallback {
         id: String,
         payeePaymentReference: String,
@@ -80,7 +88,7 @@ pub mod swish {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
         let response = state.client
-            .put(format!("{}{}", SWISH_REQUEST_URL, id.simple().to_string().to_uppercase()))
+            .put(format!("{}{}", SWISH_ENDPOINTS_SANDBOX.payment_request, id.simple().to_string().to_uppercase()))
             .headers(headers)
             .json(&pro)
             .send().await.map_err(ClientError::from)?;

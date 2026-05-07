@@ -21,6 +21,7 @@ pub struct EnvironmentVariables {
     pub google_client_id: String,
     pub google_client_secret: String,
     pub permission_table_path: String,
+    pub swish_number: String,
 }
 
 impl EnvironmentVariables {
@@ -47,6 +48,7 @@ impl EnvironmentVariables {
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
             permission_table_path: env::var("PERMISSION_TABLE_PATH").unwrap(),
+            swish_number: env::var("SWISH_NUMBER").unwrap(),
         }
     }
 }
@@ -118,10 +120,16 @@ pub struct AppState {
 impl AppState {
     pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables) -> Self {
 
-        let cert_bytes = fs::read("certificates/Swish_Merchant_TestCertificate_1234679304.p12").unwrap();
+        // let cert_bytes = fs::read("certificates/merchant/Swish_Merchant_TestCertificate_1234679304.p12").unwrap();
+        // let identity = Identity::from_pkcs12_der(&cert_bytes, "swish").unwrap();
+
+        // let ca_cert = fs::read("certificates/merchant/Swish_TLS_RootCA.pem").unwrap();
+        // let ca = Certificate::from_pem(&ca_cert).unwrap();
+
+        let cert_bytes = fs::read("certificates/sandbox/myCertificate.p12").unwrap();
         let identity = Identity::from_pkcs12_der(&cert_bytes, "swish").unwrap();
 
-        let ca_cert = fs::read("certificates/Swish_TLS_RootCA.pem").unwrap();
+        let ca_cert = fs::read("certificates/sandbox/myCertificate.pem").unwrap();
         let ca = Certificate::from_pem(&ca_cert).unwrap();
 
         AppState {
