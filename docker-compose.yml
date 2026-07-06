@@ -4,6 +4,7 @@ services:
     env_file: ".env"
     volumes:
       - ${DATABASE_DIR}:/konsfekt/db
+      - ${PERMISSION_TABLE_PATH}:/konsfekt/permission_table.json
 
   caddy:
     image: caddy:2-alpine

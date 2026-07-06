@@ -30,7 +30,7 @@ impl EnvironmentVariables {
         let _ = dotenv::dotenv();
 
         let is_debug = cfg!(debug_assertions);
-        let static_frontend = args.mode == args::Mode::Tunnel || args.mode == args::Mode::Prod || args.static_frontend;
+        let static_frontend = !args.run_locally || args.static_frontend;
 
         EnvironmentVariables {
             is_debug,
@@ -40,10 +40,9 @@ impl EnvironmentVariables {
                 true => String::from("/"),
                 false => String::from("http://127.0.0.1:5173"),
             },
-            site_domain: match args.mode {
-                args::Mode::Local => String::from("http://127.0.0.1:8080"),
-                args::Mode::Prod => env::var("PRODUCTION_DOMAIN").unwrap(),
-                args::Mode::Tunnel => env::var("TUNNEL_DOMAIN").unwrap(),
+            site_domain: match args.run_locally {
+                true => String::from("http://127.0.0.1:8080"),
+                false => env::var("SITE_DOMAIN").unwrap(),
             },
             google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
             google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),

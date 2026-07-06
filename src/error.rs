@@ -1,7 +1,6 @@
 use core::fmt;
-use std::any::Any;
 
-use actix_web::{HttpResponse, HttpResponseBuilder, Responder, ResponseError, http::StatusCode};
+use actix_web::{HttpResponse, Responder, ResponseError, http::StatusCode};
 
 /// Helper macro that logs and returns an [`actix_web::Error`]
 #[macro_export]
@@ -193,7 +192,14 @@ impl ResponseError for AppError {
 
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
         if self.status_code().is_server_error() {
-            log::error!("{self}");
+            // walk error source chain
+            let mut msg = format!("{self}");
+            let mut src = std::error::Error::source(self);
+            while let Some(e) = src {
+                msg.push_str(&format!("\n  caused by: {e}"));
+                src = e.source();
+            }
+            log::error!("{msg}");
         } else {
             log::debug!("{self}");
         }

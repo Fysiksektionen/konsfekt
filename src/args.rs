@@ -1,16 +1,9 @@
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 
 #[derive(Parser)]
 pub struct Args {
-    #[arg(short, long)]
-    pub mode: Mode,
+    #[arg(long = "local")]
+    pub run_locally: bool,
     #[arg(long = "static")]
     pub static_frontend: bool
-}
-
-#[derive(Clone, ValueEnum, PartialEq)]
-pub enum Mode {
-    Local,
-    Prod,
-    Tunnel,
 }
