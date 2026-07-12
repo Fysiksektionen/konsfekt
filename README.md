@@ -35,6 +35,7 @@ It will enable you to test making payments end-to-end with the Swish test app fo
 3. Set the environment variable `SWISH_NUMBER` to the merchant number found in `certificates/sandbox/details.txt`.
 4. Setup the Swish test app with one of the listed user numbers in `details.txt`.
 5. Create a [test BankID](https://developers.bankid.com/test-portal/bankid-for-test).
+6. Make sure `SWISH_ENVIRONMENT` is set to `sandbox`
 
 > NOTE: `https` is required when testing Swish functionality. See [Tunneling](#tunneling---develop-with-https).
 

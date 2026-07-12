@@ -38,12 +38,15 @@ macro_rules! app_error_enum {
                 pub inner: $inner,
                 http_code: StatusCode,
                 additional_info: String,
+                location: &'static std::panic::Location<'static>,
             }
 
             impl $wrapper {
+                #[track_caller]
                 pub fn new(inner: $inner) -> Self {
                     Self {
-                        inner, http_code: StatusCode::INTERNAL_SERVER_ERROR, additional_info: String::new()
+                        inner, http_code: StatusCode::INTERNAL_SERVER_ERROR, additional_info: String::new(),
+                        location: std::panic::Location::caller(),
                     }
                 }
 
@@ -59,6 +62,7 @@ macro_rules! app_error_enum {
             }
 
             impl From<$inner> for $wrapper {
+                #[track_caller]
                 fn from(e: $inner) -> Self { Self::new(e) }
             }
 
@@ -68,6 +72,7 @@ macro_rules! app_error_enum {
                     if !self.additional_info.is_empty() {
                         write!(f, " ({})", self.additional_info)?;
                     }
+                    write!(f, " at {}", self.location)?;
                     Ok(())
                 }
             }

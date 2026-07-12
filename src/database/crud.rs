@@ -472,11 +472,12 @@ pub async fn unlink_transactions(pool: &SqlitePool, user_id: u32) -> Result<(), 
 pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRequestRow) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
-        INSERT INTO SwishPaymentRequest (id, user, status, token, callback_identifier, location)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO SwishPaymentRequest (id, user, amount, status, token, callback_identifier, location)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#
     ).bind(row.id)
     .bind(row.user)
+    .bind(row.amount)
     .bind(row.status)
     .bind(row.token)
     .bind(row.callback_identifier)

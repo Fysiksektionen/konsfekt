@@ -55,8 +55,8 @@ pub mod swish {
         errorMessage: Option<String>,
     }
 
-    pub struct PaymentRequest {
-        id: String,
+    pub struct SwishPaymentResponse {
+        payment_id: String,
         token: String,
         location: String,
         callback_identifier: String
@@ -89,16 +89,16 @@ pub mod swish {
         }
     }
 
-    async fn create_request(state: &Data<AppState>, amount: f32) -> Result<PaymentRequest, AppError> {
+    async fn initiate_payment(state: &Data<AppState>, amount: f32) -> Result<SwishPaymentResponse, AppError> {
         // Our's and Swish's payment identifier
-        let id: String = Uuid::new_v4().simple().to_string().to_uppercase(); 
+        let payment_id: String = Uuid::new_v4().simple().to_string().to_uppercase(); 
         let pro = PaymentRequestObject::new(state, amount);
         
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
         let response = state.client
-            .put(format!("{}{}", state.env.swish_api_url, id))
+            .put(format!("{}{}", state.env.swish_api_url, payment_id))
             .headers(headers)
             .json(&pro)
             .send().await.map_err(ClientError::from)?;
@@ -110,8 +110,8 @@ pub mod swish {
             let location = response.headers().get("Location").and_then(|l| l.to_str().ok());
             return match (token, location) {
                 (Some(token), Some(location)) => {
-                    Ok(PaymentRequest {
-                        id,
+                    Ok(SwishPaymentResponse {
+                        payment_id,
                         token: String::from(token),
                         location: String::from(location),
                         callback_identifier: pro.callbackIdentifier,
@@ -140,21 +140,22 @@ pub mod swish {
             return_err!(actix_web::error::ErrorBadRequest("amount < 30 kr"));
         }
 
-        let payment_request = create_request(&state, query.amount).await?;
+        let swish_payment_response = initiate_payment(&state, query.amount).await?;
         let _ = crud::create_payment_request(&state.db, SwishPaymentRequestRow {
-            id: payment_request.id.clone(),
+            id: swish_payment_response.payment_id.clone(),
             user: user.id,
+            amount: query.amount,
             status: Status::Pending,
-            token: payment_request.token.clone(),
-            callback_identifier: payment_request.callback_identifier,
-            location: payment_request.location.clone(),
+            token: swish_payment_response.token.clone(),
+            callback_identifier: swish_payment_response.callback_identifier,
+            location: swish_payment_response.location.clone(),
         }).await?;
 
         log::info!("User {} initiated a Swish payment", user.id);
 
         Ok(web::Json(CreatePaymentRequestResponse {
-            payment_id: payment_request.id,
-            token: payment_request.token.clone()
+            payment_id: swish_payment_response.payment_id,
+            token: swish_payment_response.token.clone()
         }))
     }
 
@@ -170,10 +171,14 @@ pub mod swish {
         }
         let payment_status = callback.status.parse::<Status>()?;
         crud::update_payment_request(&state.db, payment_id.clone(), payment_status).await?;
-
-        if payment_request.status != payment_status {
-            log::info!("Updated payment status to {:?} for payment {}", payment_status, payment_id)
-        } 
+        
+        if payment_request.status != payment_status { // If still Status::Pending
+            let user = crud::get_user(&state.db, Some(payment_request.user), None).await?;
+            log::info!("Updated user {}'s payment status to {:?} for payment {}", user.id, payment_status, payment_id);
+            if payment_status == Status::Paid {
+                crud::update_user_balance(&state.db, user.id, user.balance + payment_request.amount).await?;
+            }
+        }
 
         Ok(())
     }
