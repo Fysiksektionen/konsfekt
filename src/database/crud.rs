@@ -1,11 +1,11 @@
-use sqlx::{QueryBuilder, Result, SqlitePool, pool};
+use sqlx::{QueryBuilder, Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
-use crate::database::model::{SwishPaymentRow, TransactionItemRow, TransactionRow};
+use crate::database::model::{SwishPaymentRequestRow, TransactionItemRow, TransactionRow};
 use crate::error::DatabaseError;
 use crate::model::{PendingTransaction, TransactionDetail, TransactionQuery, TransactionSummary};
 use crate::Role;
-use crate::routes::user;
+use crate::routes::payment::swish;
 
 use super::model::UserRow;
 use super::model::ProductRow;
@@ -469,18 +469,39 @@ pub async fn unlink_transactions(pool: &SqlitePool, user_id: u32) -> Result<(), 
 //          Payment
 //
 
-pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRow) -> Result<(), DatabaseError> {
+pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRequestRow) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
-        INSERT INTO SwishPayment (id, user, status, token, location)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO SwishPaymentRequest (id, user, status, token, callback_identifier, location)
+        VALUES (?, ?, ?, ?, ?, ?)
         "#
     ).bind(row.id)
     .bind(row.user)
     .bind(row.status)
     .bind(row.token)
+    .bind(row.callback_identifier)
     .bind(row.location)
     .execute(pool).await?;
 
+    Ok(())
+}
+
+pub async fn get_payment_request(pool: &SqlitePool, payment_id: String) -> Result<SwishPaymentRequestRow, DatabaseError> {
+    let payment_request = sqlx::query_as(
+        r#"
+        SELECT * FROM SwishPaymentRequest WHERE id = ?
+        "#
+    ).bind(payment_id).fetch_one(pool).await?;
+    Ok(payment_request)
+}
+
+pub async fn update_payment_request(pool: &SqlitePool, payment_id: String, status: swish::Status) -> Result<(), DatabaseError> {
+    sqlx::query(
+        r#"
+        UPDATE SwishPaymentRequest
+        SET status = ?
+        WHERE id = ?
+        "#
+    ).bind(status).bind(payment_id).execute(pool).await?;
     Ok(())
 }

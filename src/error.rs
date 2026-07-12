@@ -7,7 +7,11 @@ use actix_web::{HttpResponse, Responder, ResponseError, http::StatusCode};
 macro_rules! return_err {
     ($error:expr) => {
         let error: actix_web::Error = $error;
-        log::debug!("{}", error);
+        if error.as_response_error().status_code().is_server_error() {
+            log::error!("{}", error);
+        } else {
+            log::debug!("{}", error);
+        }
         return Err(error);
     };
 }
@@ -33,17 +37,23 @@ macro_rules! app_error_enum {
             pub struct $wrapper {
                 pub inner: $inner,
                 http_code: StatusCode,
+                additional_info: String,
             }
 
             impl $wrapper {
                 pub fn new(inner: $inner) -> Self {
                     Self {
-                        inner, http_code: StatusCode::INTERNAL_SERVER_ERROR
+                        inner, http_code: StatusCode::INTERNAL_SERVER_ERROR, additional_info: String::new()
                     }
                 }
 
                 pub fn with_status(mut self, code: StatusCode) -> Self {
                     self.http_code = code;
+                    self
+                }
+
+                pub fn add_info(mut self, info: String) -> Self {
+                    self.additional_info = info;
                     self
                 }
             }
@@ -54,7 +64,11 @@ macro_rules! app_error_enum {
 
             impl std::fmt::Display for $wrapper {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    write!(f, "{}", self.inner)
+                    write!(f, "{}", self.inner)?;
+                    if !self.additional_info.is_empty() {
+                        write!(f, " ({})", self.additional_info)?;
+                    }
+                    Ok(())
                 }
             }
 
@@ -71,10 +85,25 @@ macro_rules! app_error_enum {
             impl ResponseError for $wrapper {
                 fn status_code(&self) -> actix_web::http::StatusCode {
                     self.http_code
-                    
+
                 }
-            
+
                 fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
+                    if self.status_code().is_server_error() {
+                        // walk error source chain
+                        // Skip the first hop: this wrapper's Display just forwards to
+                        // self.inner verbatim, and source() points at that same self.inner,
+                        // so displaying both would print the identical text twice.
+                        let mut msg = format!("{self}");
+                        let mut src = std::error::Error::source(self).and_then(|e| e.source());
+                        while let Some(e) = src {
+                            msg.push_str(&format!("\n  caused by: {e}"));
+                            src = e.source();
+                        }
+                        log::error!("{msg}");
+                    } else {
+                        log::debug!("{self}");
+                    }
                     HttpResponse::build(self.status_code()).body(stringify!($wrapper))
                 }
             }
@@ -191,18 +220,6 @@ impl ResponseError for AppError {
     }
 
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
-        if self.status_code().is_server_error() {
-            // walk error source chain
-            let mut msg = format!("{self}");
-            let mut src = std::error::Error::source(self);
-            while let Some(e) = src {
-                msg.push_str(&format!("\n  caused by: {e}"));
-                src = e.source();
-            }
-            log::error!("{msg}");
-        } else {
-            log::debug!("{self}");
-        }
         return match_error_variant!(self, ResponseError::error_response);
     }
 }

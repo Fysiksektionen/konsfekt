@@ -22,6 +22,12 @@ pub struct EnvironmentVariables {
     pub google_client_secret: String,
     pub permission_table_path: String,
     pub swish_number: String,
+    pub use_swish_sandbox: bool,
+    pub swish_api_url: String,
+}
+
+fn required_env(name: &str) -> String {
+    env::var(name).unwrap_or_else(|_| panic!("Missing required environment variable: {name}"))
 }
 
 impl EnvironmentVariables {
@@ -31,6 +37,12 @@ impl EnvironmentVariables {
 
         let is_debug = cfg!(debug_assertions);
         let static_frontend = !args.run_locally || args.static_frontend;
+
+        let swish_environment = required_env("SWISH_ENVIRONMENT");
+        let use_swish_sandbox = match swish_environment.as_str() {
+            "prod" => false, "sandbox" => true, 
+            _ => panic!("SWISH_ENVIRONMENT can only take values 'sandbox' and 'prod'")
+        };
 
         EnvironmentVariables {
             is_debug,
@@ -42,12 +54,17 @@ impl EnvironmentVariables {
             },
             site_domain: match args.run_locally {
                 true => String::from("http://127.0.0.1:8080"),
-                false => env::var("SITE_DOMAIN").unwrap(),
+                false => required_env("SITE_DOMAIN"),
             },
-            google_client_id: env::var("GOOGLE_CLIENT_ID").unwrap(),
-            google_client_secret: env::var("GOOGLE_CLIENT_SECRET").unwrap(),
-            permission_table_path: env::var("PERMISSION_TABLE_PATH").unwrap(),
-            swish_number: env::var("SWISH_NUMBER").unwrap(),
+            google_client_id: required_env("GOOGLE_CLIENT_ID"),
+            google_client_secret: required_env("GOOGLE_CLIENT_SECRET"),
+            permission_table_path: required_env("PERMISSION_TABLE_PATH"),
+            swish_number: required_env("SWISH_NUMBER"),
+            use_swish_sandbox,
+            swish_api_url: match use_swish_sandbox {
+                true => String::from("https://staging.getswish.pub.tds.tieto.com/swish-cpcapi/api/v2/paymentrequests/"),
+                false => String::from("https://cpc.getswish.net/swish-cpcapi/api/v2/paymentrequests/"),
+            }
         }
     }
 }
@@ -118,17 +135,14 @@ pub struct AppState {
 
 impl AppState {
     pub fn from(pool: Pool<Sqlite>, env_vars: EnvironmentVariables) -> Self {
-
-        // let cert_bytes = fs::read("certificates/merchant/Swish_Merchant_TestCertificate_1234679304.p12").unwrap();
-        // let identity = Identity::from_pkcs12_der(&cert_bytes, "swish").unwrap();
-
-        // let ca_cert = fs::read("certificates/merchant/Swish_TLS_RootCA.pem").unwrap();
-        // let ca = Certificate::from_pem(&ca_cert).unwrap();
+        if !env_vars.use_swish_sandbox {
+            unimplemented!("Need to figure out production certificates");
+        }
 
         let cert_bytes = fs::read("certificates/sandbox/myCertificate.p12").unwrap();
-        let identity = Identity::from_pkcs12_der(&cert_bytes, "swish").unwrap();
-
         let ca_cert = fs::read("certificates/sandbox/myCertificate.pem").unwrap();
+
+        let identity = Identity::from_pkcs12_der(&cert_bytes, "swish").unwrap();
         let ca = Certificate::from_pem(&ca_cert).unwrap();
 
         AppState {

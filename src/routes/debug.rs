@@ -1,6 +1,6 @@
 use actix_web::{HttpRequest, post, web::{self, Data}};
 
-use crate::{AppState, database::crud, error::ApiResult, return_err, routes::user_from_cookie};
+use crate::{AppState, database::crud, error::ApiResult, routes::user_from_cookie};
 
 #[derive(serde::Deserialize)]
 struct MoneyParams { amount: f32 }

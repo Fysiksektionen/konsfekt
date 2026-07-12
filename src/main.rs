@@ -36,22 +36,20 @@ fn create_logger(env: &EnvironmentVariables) {
     
     let mut builder = env_logger::Builder::from_default_env();
 
-    builder.filter_module("konsfekt", log::LevelFilter::Error);
-    builder.filter_module("konsfekt", log::LevelFilter::Warn);
+    // Log error, warn and info
     builder.filter_module("konsfekt", log::LevelFilter::Info);
-    builder.filter_module("konsfekt", log::LevelFilter::Trace);
 
+    // Log error, warn, info and debug
     if env.is_debug {
         builder.filter_module("konsfekt", log::LevelFilter::Debug);
-        unsafe {
-            std::env::set_var("RUST_LOG", "reqwest=debug,hyper=debug");
-        }
+        builder.filter_module("reqwest", log::LevelFilter::Debug);
+        builder.filter_module("hyper", log::LevelFilter::Debug);
     }
 
     builder.init();
 }
 
-fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl actix_web::dev::ServiceFactory<actix_web::dev::ServiceRequest, Config = (), Response = actix_web::dev::ServiceResponse<actix_web::body::EitherBody<actix_web::body::BoxBody>>, Error = actix_web::Error, InitError = ()>> {
+fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl actix_web::dev::ServiceFactory<actix_web::dev::ServiceRequest, Config = (), Response = actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>, Error = actix_web::Error, InitError = ()>> {
     let mut cors = Cors::default()
             .supports_credentials()
             .allowed_methods(vec!["GET", "POST"])
@@ -69,7 +67,12 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
         .wrap(middleware::from_fn(routes::session_middleware))
         .wrap(middleware::from_fn(routes::permission_middleware))
         .app_data(Data::new(AppState::from(pool.clone(), env.clone())))
+        .app_data(actix_web::web::JsonConfig::default().error_handler(|err, req| {
+            log::warn!("JSON body error on {}: {}", req.path(), err);
+            actix_web::error::InternalError::from_response(err, actix_web::HttpResponse::BadRequest().finish()).into()
+        }))
         .wrap(cors)
+        .wrap(middleware::from_fn(routes::api_logging_middleware))
 
         // Google Auth
         .service(routes::oauth::google_login)
@@ -104,6 +107,7 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
         // Swish API
         .service(routes::payment::swish::create_payment_request)
         .service(routes::payment::swish::swish_callback)
+        .service(routes::payment::swish::check_status)
 
         // Stats API
         .service(routes::stats::best_selling_product)

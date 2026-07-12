@@ -6,7 +6,7 @@
   import { cart } from '$lib/storage.svelte';
   import { toast } from "svelte-sonner";
     import { backendPOST } from '$lib/utils';
-    import { invalidateAll } from '$app/navigation';
+    import { goto, invalidateAll } from '$app/navigation';
 
 	let { data }: PageProps = $props();
 
@@ -29,12 +29,6 @@
       }
     );
   }
-  async function testSwish() {
-    let response = await backendPOST("/payment/swish/create_payment_request?amount=31", {}, true);
-    if (!response.ok) {
-      toast.error(`${response.statusText} (${await response.text()})`);
-    }
-  }
 </script>
 
 
@@ -46,8 +40,7 @@
       <span class="text-5xl font-mono font-semibold">{data.user.balance}kr</span> 
     </div>
 
-  <Button onclick={() => debug_add_money()} class="text-2xl text-card-foreground" variant="secondary">Lägg till pengar</Button>
-  <Button onclick={() => testSwish()} class="text-2xl text-card-foreground" variant="secondary">Testa swish</Button>
+  <Button href="/swish" class="text-2xl text-card-foreground" variant="secondary">Lägg till pengar</Button>
   
   <!--
   <div class="flex w-full flex-col items-center gap-2">

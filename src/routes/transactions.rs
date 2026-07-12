@@ -14,7 +14,7 @@ async fn check_transaction_query_permission(state: &Data<AppState>, req: HttpReq
     let user = user_from_cookie(&state.db, &req).await?;
     let other_users_requested = query.user_ids.iter().any(|id| *id != user.id) || query.user_ids.is_empty();
     if user.role == Role::User && other_users_requested {
-        return_err!(actix_web::error::ErrorUnauthorized("Cannot get other user's transactions"));
+        return_err!(actix_web::error::ErrorForbidden("Cannot get other user's transactions"));
     }
     Ok(())
 }

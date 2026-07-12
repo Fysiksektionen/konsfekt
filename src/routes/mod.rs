@@ -13,10 +13,11 @@ use sqlx::SqlitePool;
 use crate::{AppState, auth, database::model::UserRow, error::AppError, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
-const PATH_WHITELIST: [&str; 3] = [
+const PATH_WHITELIST: [&str; 4] = [
     LOGIN_PATH,
     "/api/auth/google",
     "/api/auth/google/callback",
+    payment::swish::CALLBACK_URL,
 ];
 
 //
@@ -81,6 +82,23 @@ pub async fn session_middleware(
     }
 }
 
+/// Logs `/api/*` requests at debug level; everything else (static frontend, uploads) is never logged.
+pub async fn api_logging_middleware<B: actix_web::body::MessageBody>(
+    req: ServiceRequest,
+    next: middleware::Next<B>
+) -> Result<ServiceResponse<B>, actix_web::Error> {
+    let path = req.path().to_owned();
+    if !path.starts_with("/api/") {
+        return next.call(req).await;
+    }
+
+    let method = req.method().clone();
+    let start = std::time::Instant::now();
+    let res = next.call(req).await?;
+    log::debug!("{method} {path} {} {:?}", res.status(), start.elapsed());
+    Ok(res)
+}
+
 pub async fn permission_middleware(
     state: Data<AppState>,
     req: ServiceRequest,
@@ -99,7 +117,7 @@ pub async fn permission_middleware(
 
     match state.permission_table.check_access(req.path(), user.role) {
         true => next.call(req).await,
-        false => Err(actix_web::error::ErrorUnauthorized("Access Denied")),
+        false => Err(actix_web::error::ErrorForbidden("Access Denied")),
     }
 }
 

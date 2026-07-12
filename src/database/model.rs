@@ -1,5 +1,3 @@
-use uuid::Uuid;
-
 use crate::{Role, model::ProductFlags, routes::payment::swish};
 
 /// DO NOT SEND TO FRONTEND
@@ -45,10 +43,11 @@ pub struct TransactionItemRow {
 }
 
 #[derive(sqlx::FromRow)]
-pub struct SwishPaymentRow {
-    pub id: Uuid,
+pub struct SwishPaymentRequestRow {
+    pub id: String, // UUID as readable string
     pub user: u32,
     pub status: swish::Status,
     pub token: String,
-    pub location: String,
+    pub callback_identifier: String, // Ensure Swish's POST callback is legit
+    pub location: String, // Where to poll Swish for new status
 }

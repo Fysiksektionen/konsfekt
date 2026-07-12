@@ -7,7 +7,7 @@ use crate::{AppState, Role, database::{self, model::UserRow}, error::ApiResult, 
 
 fn product_assert_permission(product: &Product, user: &UserRow) -> ApiResult<()> {
     if !product.flags.modifiable && user.role != Role::Admin {
-        return_err!(actix_web::error::ErrorUnauthorized("Product not modifiable"));
+        return_err!(actix_web::error::ErrorForbidden("Product not modifiable"));
     }
     Ok(())
 }
@@ -199,7 +199,7 @@ pub async fn undo_transaction(state: Data<AppState>, req: HttpRequest, transacti
     let transaction = database::crud::get_transaction(&state.db, transaction_id.transaction_id).await?;
 
     if user.id != transaction.user {
-        return_err!(actix_web::error::ErrorUnauthorized("Cannot undo another user's transaction"));
+        return_err!(actix_web::error::ErrorForbidden("Cannot undo another user's transaction"));
     }
     if OffsetDateTime::now_utc().unix_timestamp() - transaction.datetime > 60 {
         return_err!(actix_web::error::ErrorConflict("Transaction cannot be undone anymore"));

@@ -1,7 +1,7 @@
-use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, Result, get, post, web::{self, Data, Json}};
+use actix_web::{HttpRequest, Result, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 
-use crate::{AppState, Role, database::{crud, model::UserRow}, error::ApiResult, model::{TransactionDetail, TransactionQuery, TransactionSummary, UserResponse}, return_err, routes::user_from_cookie};
+use crate::{AppState, Role, database::{crud, model::UserRow}, error::ApiResult, model::UserResponse, return_err, routes::user_from_cookie};
 
 #[get("/api/get_user")]
 pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<UserResponse>, actix_web::Error> {
@@ -35,7 +35,7 @@ pub async fn get_users(state: Data<AppState>, req: HttpRequest, query: web::Quer
 
     let user = user_from_cookie(&state.db, &req).await?;
     if user.role <= Role::Maintainer {
-        return_err!(actix_web::error::ErrorUnauthorized("Cannot get other user's information"));
+        return_err!(actix_web::error::ErrorForbidden("Cannot get other user's information"));
     }
 
     match &query.role {
@@ -57,7 +57,7 @@ pub async fn delete_user(state: Data<AppState>, req: HttpRequest, query: web::Qu
     
     let user = user_from_cookie(&state.db, &req).await?;
     if user.role <= Role::Maintainer {
-        return_err!(actix_web::error::ErrorUnauthorized("Cannot delete other users"));
+        return_err!(actix_web::error::ErrorForbidden("Cannot delete other users"));
     }
     
     crud::delete_user(&state.db, query.id).await?;
@@ -111,12 +111,12 @@ pub async fn set_user_flags(state: Data<AppState>, req: HttpRequest, flags: web:
 pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::Json<UpdateUserParams>) -> ApiResult<()> {
     let user_admin = user_from_cookie(&state.db, &req).await?;
     if user_admin.role <= Role::Maintainer {
-        return_err!(actix_web::error::ErrorUnauthorized("Cannot change other user's information"));
+        return_err!(actix_web::error::ErrorForbidden("Cannot change other user's information"));
     }
-    
+
     let mut user = crud::get_user(&state.db, Some(params.id), None).await?;
     if user.role == Role::Admin && user_admin.role != Role::Admin {
-        return_err!(actix_web::error::ErrorUnauthorized("Cannot change an admins information"));
+        return_err!(actix_web::error::ErrorForbidden("Cannot change an admins information"));
     }
     if let Some(role) = params.role { user.role = role };
     if let Some(balance) = params.balance { user.balance = balance };
