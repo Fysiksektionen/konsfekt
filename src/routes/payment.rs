@@ -185,9 +185,11 @@ pub mod swish {
 
     #[derive(serde::Serialize)]
     struct PaymentStatusResponse {
-        status: Status 
+        status: Status,
+        amount: f32,
+        balance: f32,
     }
-    
+
     #[get("/api/payment/status/{payment_id}")]
     pub async fn check_status(state: Data<AppState>, req: HttpRequest, path: web::Path<String>) -> ApiResult<web::Json<PaymentStatusResponse>> {
         let user = user_from_cookie(&state.db, &req).await?;
@@ -196,7 +198,9 @@ pub mod swish {
             return_err!(actix_web::error::ErrorForbidden("Cannot get other user's payment status"));
         }
         Ok(web::Json(PaymentStatusResponse {
-            status: payment_request.status
+            status: payment_request.status,
+            amount: payment_request.amount,
+            balance: user.balance,
         }))
     }
 }
