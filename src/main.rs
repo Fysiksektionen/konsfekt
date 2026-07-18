@@ -108,6 +108,7 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
         .service(routes::payment::swish::create_payment_request)
         .service(routes::payment::swish::swish_callback)
         .service(routes::payment::swish::check_status)
+        .service(routes::payment::swish::get_qr_code)
 
         // Stats API
         .service(routes::stats::best_selling_product)

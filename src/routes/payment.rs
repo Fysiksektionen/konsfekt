@@ -3,13 +3,13 @@ pub enum PaymentMethod {
 }
 
 pub mod swish {
-    use actix_web::{HttpRequest, get, http::StatusCode, post, web::{self, Data}};
-    use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue};
+    use actix_web::{HttpRequest, HttpResponse, get, http::StatusCode, post, web::{self, Data}};
     use uuid::Uuid;
 
     use crate::{AppState, database::{crud, model::SwishPaymentRequestRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishErrorResponse}, return_err, routes::user_from_cookie};
 
     pub const CALLBACK_URL: &str = "/api/payment/swish/callback"; // If changing URL: Remember to change post function
+    pub const SWISH_QR_CODE_API: &str = "https://mpc.getswish.net/qrg-swish/api/v1/commerce";
     
     #[derive(serde::Serialize)]
     #[allow(non_snake_case)]
@@ -94,12 +94,9 @@ pub mod swish {
         let payment_id: String = Uuid::new_v4().simple().to_string().to_uppercase(); 
         let pro = PaymentRequestObject::new(state, amount);
         
-        let mut headers = HeaderMap::new();
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
         let response = state.client
             .put(format!("{}{}", state.env.swish_api_url, payment_id))
-            .headers(headers)
             .json(&pro)
             .send().await.map_err(ClientError::from)?;
 
@@ -202,5 +199,33 @@ pub mod swish {
             amount: payment_request.amount,
             balance: user.balance,
         }))
+    }
+
+    #[derive(serde::Serialize)]
+    struct QrCodeData {
+        token: String,
+        size: String,
+        format: String,
+        border: String,
+    }
+
+    #[get("/api/payment/qr/{payment_id}")]
+    pub async fn get_qr_code(state: Data<AppState>, req: HttpRequest, path: web::Path<String>) -> ApiResult<HttpResponse> {
+        let user = user_from_cookie(&state.db, &req).await?;
+        let payment_request = crud::get_payment_request(&state.db, path.into_inner()).await?;
+        if payment_request.user != user.id {
+            return_err!(actix_web::error::ErrorForbidden("Cannot retrieve QR code for other user's payment"));
+        }
+        let response = state.client.post(SWISH_QR_CODE_API)
+            .json(&QrCodeData {
+                token: payment_request.token, size: String::from("300"), 
+                format: String::from("png"), border: String::from("0")
+            }).send().await.map_err(ClientError::from)?;
+
+        if response.status() != 200 {
+            return_err!(actix_web::error::ErrorInternalServerError("Could not retrieve QR code from Swish"));
+        }
+        let qr_bytes = response.bytes().await.map_err(ClientError::from)?.to_vec();
+        Ok(HttpResponse::Ok().content_type("image/png").body(qr_bytes))
     }
 }

@@ -23,7 +23,7 @@ type svelteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Res
  * In dev, `VITE_API_URL` is empty and requests go through the Vite proxy.
  * In production (Tauri), it resolves to the full URL e.g. `https://f.kth.se/konsfekt/api/...`.
  */
-function apiUrl(path: string): string {
+export function apiUrl(path: string): string {
     return (import.meta.env.VITE_API_URL ?? "") + path;
 }
 
