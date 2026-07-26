@@ -91,7 +91,7 @@
         <Input
           type="text"
           placeholder="Sök bland alla produkter..."
-          class="h-12 w-full rounded-full border-2 bg-card pl-11 pr-4 text-base shadow-sm focus-visible:ring-4"
+          class="h-12 w-full rounded-full border-2 bg-card pl-11 pr-4 text-base shadow-sm focus-visible:ring-4 dark:bg-card"
           value={searchTerm}
           oninput={onSearchInput}
         />

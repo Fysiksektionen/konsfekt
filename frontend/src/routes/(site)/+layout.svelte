@@ -48,9 +48,11 @@
 
 <Toaster />
 
-<nav class="fixed items-center h-16 z-10 justify-between text-secondary-foreground top-0 text-2xl p-2 flex w-full bg-background border-b border-primary">
+<nav class="fixed items-center h-16 z-10 justify-between text-secondary-foreground top-0 text-2xl p-2 flex w-full bg-muted border-b border-primary">
   <div class="flex items-center gap-5">
-    <LogoButton />
+    <div class="hidden sm:block">
+      <LogoButton />
+    </div>
   </div>
 
   {#if scrolled && !isProfilePage}

@@ -1,7 +1,7 @@
 <script>
-    import { Button } from "./ui/button";
+    import Logo from "./Logo.svelte";
 </script>
 
-<Button class="text-3xl bg-primary text-background rounded-md p-2 text-shadow-2xs text-shadow-accent" href="/" data-sveltekit-reload>
-    <p class="text-3xl bg-primary text-background rounded-md p-2 text-shadow-2xs text-shadow-accent">Konsfekt</p>
-</Button>
+<a href="/" data-sveltekit-reload class="flex items-center rounded-md p-1 transition-opacity hover:opacity-80">
+    <Logo class="h-14 w-auto"/>
+</a>

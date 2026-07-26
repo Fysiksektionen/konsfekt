@@ -67,7 +67,7 @@
           <p>{product.description}</p>
           <div class="flex flex-col gap-2">
             <div class="flex justify-between">
-              <span class="text-3xl font-mono font-semibold">{product.price}kr</span> 
+              <span class="text-3xl font-mono font-medium">{product.price}kr</span>
               <Button variant="outline" onclick={() => showSoldOutPage=true}>
                 <FlagIcon/>
               </Button>
@@ -102,16 +102,16 @@
       </div>
       <p class="truncate px-3 pt-2 font-semibold">{product.name}</p>
     </button>
-    <div class="flex items-center justify-between gap-2 px-3 pb-3 pt-1">
-      <span class="font-mono text-2xl font-bold text-primary">{product.price}kr</span>
-      <div class="relative">
+    <div class="flex items-center justify-between gap-1 px-2 pb-3 pt-1 sm:gap-2 sm:px-3">
+      <span class="truncate font-mono text-lg font-medium sm:text-2xl">{product.price}kr</span>
+      <div class="relative shrink-0">
         {#if addedToCart > 0}
           <div class="absolute -top-2 -right-2 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
             <ShoppingCartIcon class="size-3.5"/>
             <span>{addedToCart}</span>
           </div>
         {/if}
-        <Button class="rounded-xl" onclick={() => buyProduct()}>Köp</Button>
+        <Button class="rounded-xl px-3 sm:px-4" onclick={() => buyProduct()}>Köp</Button>
       </div>
     </div>
 </div>
