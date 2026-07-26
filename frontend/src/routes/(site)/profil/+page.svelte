@@ -5,6 +5,7 @@
   import * as Item from "$lib/components/ui/item/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
+  import Footer from '$lib/components/Footer.svelte';
     import { backendPOST } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { invalidateAll } from '$app/navigation';
@@ -117,3 +118,5 @@
     {/if}
   </div>
 </div>
+
+<Footer/>

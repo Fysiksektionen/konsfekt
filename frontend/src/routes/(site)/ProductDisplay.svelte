@@ -91,27 +91,27 @@
   </Dialog.Content>
 </Dialog.Root>
 
-<div class="flex flex-col bg-card p-2 rounded-md border">
-    <button class="flex flex-col" onclick={() => productPopup = true}>
-      <p class="truncate text-left font-bold">{product.name}</p>
-      <div class="overflow-hidden rounded-xl">
+<div class="group flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+    <button class="flex flex-col text-left" onclick={() => productPopup = true}>
+      <div class="overflow-hidden bg-muted">
         <img
          src="/uploads/images/product/{product.id}.webp"
          alt={product.description}
-         class="aspect-square object-contain"
+         class="aspect-square w-full object-contain transition-transform duration-300 group-hover:scale-105"
         />
       </div>
-      <div class="flex justify-center w-full">
-        <span class="text-3xl font-mono font-semibold">{product.price}kr</span> 
-      </div>
+      <p class="truncate px-3 pt-2 font-semibold">{product.name}</p>
     </button>
-    <div class="flex relative justify-center items-center">
-      {#if addedToCart > 0}
-        <div class="flex absolute gap-1 justify-center right-0">
-          <ShoppingCartIcon/>
-          <span>{addedToCart}</span>
-        </div>
-      {/if}
-      <Button onclick={() => buyProduct()}>Köp</Button>
+    <div class="flex items-center justify-between gap-2 px-3 pb-3 pt-1">
+      <span class="font-mono text-2xl font-bold text-primary">{product.price}kr</span>
+      <div class="relative">
+        {#if addedToCart > 0}
+          <div class="absolute -top-2 -right-2 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
+            <ShoppingCartIcon class="size-3.5"/>
+            <span>{addedToCart}</span>
+          </div>
+        {/if}
+        <Button class="rounded-xl" onclick={() => buyProduct()}>Köp</Button>
+      </div>
     </div>
 </div>

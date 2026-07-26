@@ -24,11 +24,20 @@
   let hasEnoughMoney = $derived(data.user.balance >= cartTotal);
   let isProfilePage = $derived(page.url.pathname.startsWith("/profil"));
 
+  let scrolled = $state(false);
+
   onMount(() => {
     let localCart = localStorage.getItem("cart");
     if (localCart) {
       cart.products = JSON.parse(localCart);
     }
+
+    const onScroll = () => {
+      scrolled = window.scrollY > 120;
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   })
 
   $effect(() => {
@@ -42,8 +51,15 @@
 <nav class="fixed items-center h-16 z-10 justify-between text-secondary-foreground top-0 text-2xl p-2 flex w-full bg-background border-b border-primary">
   <div class="flex items-center gap-5">
     <LogoButton />
-    <p class="hidden md:flex text-card-foreground">Konsulatets godisskåp app</p>
   </div>
+
+  {#if scrolled && !isProfilePage}
+    <div class="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border border-primary/40 bg-card px-4 py-1.5 shadow-sm">
+      <span class="text-sm text-muted-foreground">Saldo</span>
+      <span class="font-mono text-lg font-semibold text-card-foreground">{data.user.balance}kr</span>
+    </div>
+  {/if}
+
   <div class="flex gap-3 items-center">
     {#if totalProductCount > 0}
       <span class="text-2xl font-mono font-semibold {hasEnoughMoney ? 'text-card-foreground' : 'text-red-500'}">
