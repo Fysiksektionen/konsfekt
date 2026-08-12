@@ -6,7 +6,7 @@ pub mod swish {
     use actix_web::{HttpRequest, HttpResponse, get, http::StatusCode, post, web::{self, Data}};
     use uuid::Uuid;
 
-    use crate::{AppState, database::{crud, model::SwishPaymentRequestRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishErrorResponse}, return_err, routes::user_from_cookie};
+    use crate::{AppState, database::{self, crud, model::SwishPaymentRequestRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishErrorResponse}, model::PendingTransaction, return_err, routes::user_from_cookie};
 
     pub const CALLBACK_URL: &str = "/api/payment/swish/callback"; // If changing URL: Remember to change post function
     pub const SWISH_QR_CODE_API: &str = "https://mpc.getswish.net/qrg-swish/api/v1/commerce";
@@ -174,6 +174,14 @@ pub mod swish {
             log::info!("Updated user {}'s payment status to {:?} for payment {}", user.id, payment_status, payment_id);
             if payment_status == Status::Paid {
                 crud::update_user_balance(&state.db, user.id, user.balance + payment_request.amount).await?;
+
+                let transaction = PendingTransaction {
+                    user: Some(user.id),
+                    products: Vec::new(),
+                    amount: payment_request.amount
+                };
+
+                database::crud::create_transaction(&state.db, transaction).await?;
             }
         }
 

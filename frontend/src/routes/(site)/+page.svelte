@@ -8,7 +8,7 @@
   import { cart } from '$lib/storage.svelte';
   import { toast } from "svelte-sonner";
     import { backendPOST } from '$lib/utils';
-    import { goto, invalidateAll } from '$app/navigation';
+    import { invalidateAll } from '$app/navigation';
 
 	let { data }: PageProps = $props();
 
@@ -32,7 +32,7 @@
         );
   }
 
-  let popularProducts = $derived(data.products.slice(0, 4));
+  let popularProducts = $derived(data.products.filter(p => p.flags.popular));
 
   async function debug_add_money() {
     toast.promise(

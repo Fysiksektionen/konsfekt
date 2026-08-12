@@ -20,10 +20,12 @@ export const productFormSchema = z.object({
     flags: z.object({
         modifiable: z.boolean(),
         new_product: z.boolean(),
+        popular: z.boolean(),
         marked_sold_out: z.boolean(),
     }).optional().default({
         modifiable: true,
         new_product: false,
+        popular: false,
         marked_sold_out: false,
     }),
 });

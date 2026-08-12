@@ -195,6 +195,18 @@
             {/snippet}
           </Form.Control>
         </Form.Field>
+
+        <Form.Field {form} name="flags.popular">
+          <Form.Control>
+            {#snippet children({ props })}
+            <div class="flex gap-2">
+              <Form.Label>Visa som populär produkt</Form.Label>
+              <Switch {...props} bind:checked={$formData.flags.popular} />
+            </div>
+            {/snippet}
+          </Form.Control>
+        </Form.Field>
+
       </div>
     </div>
     {#if !isCreateForm}

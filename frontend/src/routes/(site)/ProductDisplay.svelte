@@ -5,7 +5,7 @@
   import * as Dialog from "$lib/components/ui/dialog/index.js";
     import { backendPOST, undoTransaction } from "$lib/utils";
     import { toast } from "svelte-sonner";
-    import { goto, invalidateAll } from "$app/navigation";
+    import { invalidateAll } from "$app/navigation";
 
   let { user, product, addedToCart = $bindable(0) } = $props();
 
@@ -44,7 +44,12 @@
 <Dialog.Root bind:open={productPopup}>
   <Dialog.Content>
     <Dialog.Header>
-      <Dialog.Title>{product.name}</Dialog.Title>
+      <Dialog.Title class="flex items-center gap-2">
+        {product.name}
+        {#if product.flags.new_product}
+          <span class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">NYHET</span>
+        {/if}
+      </Dialog.Title>
     </Dialog.Header>
     {#if showSoldOutPage}
       <p>
@@ -93,7 +98,10 @@
 
 <div class="group flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
     <button class="flex flex-col text-left" onclick={() => productPopup = true}>
-      <div class="overflow-hidden bg-muted">
+      <div class="relative overflow-hidden bg-muted">
+        {#if product.flags.new_product}
+          <span class="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">NYHET</span>
+        {/if}
         <img
          src="/uploads/images/product/{product.id}.webp"
          alt={product.description}

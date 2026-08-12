@@ -73,9 +73,11 @@ impl Product {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(default = "ProductFlags::default")]
 pub struct ProductFlags {
     pub modifiable: bool, // is only modifiable by admin
-    pub new_product: bool, // Example
+    pub new_product: bool,
+    pub popular: bool,
     pub marked_sold_out: bool,
 }
 
@@ -84,6 +86,7 @@ impl ProductFlags {
         ProductFlags { 
             modifiable: true,
             new_product: false,
+            popular: false,
             marked_sold_out: false,
         }
     }
