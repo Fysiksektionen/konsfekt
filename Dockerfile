@@ -2,7 +2,7 @@
 FROM rust:1.89 AS rust-builder
 WORKDIR /server
 
-COPY Cargo.toml Cargo.lock .
+COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs \
     && cargo build --release \
     && rm -rf src
@@ -15,7 +15,7 @@ RUN cargo build --release --locked
 FROM node:20 AS node-builder
 WORKDIR /frontend
 
-COPY frontend/package*.json .
+COPY frontend/package*.json ./
 RUN npm install
 
 COPY frontend/ .
@@ -29,5 +29,7 @@ RUN apt-get update && apt-get install -y libssl3 ca-certificates \
 
 COPY --from=rust-builder /server/target/release/konsfekt /usr/local/bin/konsfekt
 COPY --from=node-builder /frontend/build ./frontend/build
+
 COPY migrations /konsfekt/migrations
+
 CMD ["konsfekt"]

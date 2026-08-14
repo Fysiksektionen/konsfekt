@@ -1,0 +1,7 @@
+**/target/
+**/node_modules/
+frontend/build/
+db/
+certificates/
+.env
+.git/

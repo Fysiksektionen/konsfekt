@@ -20,7 +20,6 @@ pub struct EnvironmentVariables {
     pub site_domain: String,
     pub google_client_id: String,
     pub google_client_secret: String,
-    pub permission_table_path: String,
     pub swish_number: String,
     pub use_swish_sandbox: bool,
     pub swish_api_url: String,
@@ -58,7 +57,6 @@ impl EnvironmentVariables {
             },
             google_client_id: required_env("GOOGLE_CLIENT_ID"),
             google_client_secret: required_env("GOOGLE_CLIENT_SECRET"),
-            permission_table_path: required_env("PERMISSION_TABLE_PATH"),
             swish_number: required_env("SWISH_NUMBER"),
             use_swish_sandbox,
             swish_api_url: match use_swish_sandbox {
@@ -98,9 +96,8 @@ pub struct PermissionTable {
 }
 
 impl PermissionTable {
-    pub fn from(file_path: &str) -> Self {
-        // We need permissions
-        let json_str = fs::read_to_string(&file_path).expect(format!("Could not find file {}", file_path).as_str());
+    pub fn new() -> Self {
+        let json_str = fs::read_to_string(String::from("./permission_table.json")).expect("Could not open permission table file");
         let json: HashMap<String, Role> = serde_json::from_str(&json_str).unwrap();
         return PermissionTable { table: json };
     }
@@ -153,7 +150,7 @@ impl AppState {
                 .build()
                 .expect("Could not build reqwest::Client"),
             env: env_vars.clone(),
-            permission_table: PermissionTable::from(&env_vars.permission_table_path)
+            permission_table: PermissionTable::new()
         }
     }
 }
