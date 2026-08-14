@@ -19,18 +19,14 @@
   })
 
   let searchTerm = $state("");
-  let filteredProducts = $state(data.products);
-
-  function onSearchInput(e: Event) {
-    const value = (e.currentTarget as HTMLInputElement).value;
-    searchTerm = value;
-    const term = value.trim().toLowerCase();
-    filteredProducts = term === ""
+  let filteredProducts = $derived.by(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return term === ""
       ? data.products
       : data.products.filter((p: { name: string, description: string }) =>
           p.name.toLowerCase().includes(term) || p.description?.toLowerCase().includes(term)
         );
-  }
+  });
 
   let popularProducts = $derived(data.products.filter(p => p.flags.popular));
 
@@ -92,8 +88,7 @@
           type="text"
           placeholder="Sök bland alla produkter..."
           class="h-12 w-full rounded-full border-2 bg-card pl-11 pr-4 text-base shadow-sm focus-visible:ring-4 dark:bg-card"
-          value={searchTerm}
-          oninput={onSearchInput}
+          bind:value={searchTerm}
         />
       </div>
     </div>

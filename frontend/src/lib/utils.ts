@@ -57,6 +57,7 @@ export type TransactionQuery = {
     product_ids: number[];
     time_range?: TimeRange;
     search_term?: string;
+    admin_issued?: boolean;
     cursor?: number;
     limit: number;
     descending: boolean;

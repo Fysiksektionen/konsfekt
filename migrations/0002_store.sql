@@ -12,6 +12,7 @@ CREATE TABLE StoreTransaction ( -- Transaction is a SQLite reserved keyword
     user INTEGER, -- If user deleted
     amount REAL NOT NULL,
     datetime INTEGER NOT NULL,
+    admin_issued INTEGER NOT NULL DEFAULT 0, -- Distinguish deposit types
     FOREIGN KEY("user") REFERENCES User("id") ON DELETE SET NULL
 );
 

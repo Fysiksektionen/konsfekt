@@ -1,6 +1,7 @@
 <script lang="ts">
     import TransactionTable from "$lib/components/TransactionTable.svelte";
     import Input from "$lib/components/ui/input/input.svelte";
+    import Switch from "$lib/components/ui/switch/switch.svelte";
     import { defaultTransactionQuery, getTransactions, type TransactionQuery } from "$lib/utils";
   import type { PageProps } from "./$types";
   import * as Select from "$lib/components/ui/select/index.js";
@@ -90,6 +91,13 @@
     prevFilterValue = filter.value;
     search();
   }
+
+  let adminIssuedOnly = $state(false);
+
+  function toggleAdminIssued() {
+    transactionQuery.admin_issued = adminIssuedOnly ? true : undefined;
+    search();
+  }
 </script>
 
 <div class="flex gap-3 flex-col">
@@ -115,6 +123,10 @@
         {/each}
       </Select.Content>
     </Select.Root>
+    <div class="flex items-center gap-2">
+      <Switch bind:checked={adminIssuedOnly} onCheckedChange={toggleAdminIssued} id="admin-issued-filter"/>
+      <label for="admin-issued-filter" class="text-sm">Endast saldon ändrade av admin</label>
+    </div>
   </div>
 
   <TransactionTable transactions={transactions} isAdminTable={true}/>

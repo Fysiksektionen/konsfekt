@@ -21,6 +21,13 @@
 
  let timeSincePurchace = $derived(currentTime - currentTransaction?.datetime ?? 0);
 
+ function transactionTypeLabel(transaction) {
+   if (transaction.admin_issued) {
+     return "Admin ändrat"
+   }
+   return transaction.amount > 0 ? 'Insättning' : "Köp"
+ }
+
  onMount(() => {
 		const interval = setInterval(() => {
 			currentTime = Math.floor(Date.now()/1000);
@@ -49,9 +56,9 @@
       {#each transactions as transaction}
         <Table.Row onclick={() => onTransactionClicked(transaction.id)}>
           {#if isAdminTable}
-            <Table.Cell>{transaction.user_email || "Anonymt köp"}</Table.Cell>
+            <Table.Cell>{transaction.user_email || "Anonym användare"}</Table.Cell>
           {/if}
-          <Table.Cell>{transaction.amount > 0 ? 'Insättning' : "Köp"}</Table.Cell>
+          <Table.Cell>{transactionTypeLabel(transaction)}</Table.Cell>
           <Table.Cell class="font-medium text-blue-500">
             {#if transaction.amount > 0}
               <div class="text-end font-medium text-blue-500">+{transaction.amount} kr</div>

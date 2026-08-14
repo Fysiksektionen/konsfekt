@@ -178,7 +178,8 @@ pub mod swish {
                 let transaction = PendingTransaction {
                     user: Some(user.id),
                     products: Vec::new(),
-                    amount: payment_request.amount
+                    amount: payment_request.amount,
+                    admin_issued: false
                 };
 
                 database::crud::create_transaction(&state.db, transaction).await?;

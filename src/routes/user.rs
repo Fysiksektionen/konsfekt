@@ -1,7 +1,8 @@
 use actix_web::{HttpRequest, Result, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
+use sqlx::database;
 
-use crate::{AppState, Role, database::{crud, model::UserRow}, error::ApiResult, model::UserResponse, return_err, routes::user_from_cookie};
+use crate::{AppState, Role, database::{crud, model::UserRow}, error::ApiResult, model::{PendingTransaction, UserResponse}, return_err, routes::user_from_cookie};
 
 #[get("/api/get_user")]
 pub async fn get_user(state: Data<AppState>, req: HttpRequest) -> Result<web::Json<UserResponse>, actix_web::Error> {
@@ -119,7 +120,18 @@ pub async fn update_user(state: Data<AppState>, req: HttpRequest, params: web::J
         return_err!(actix_web::error::ErrorForbidden("Cannot change an admins information"));
     }
     if let Some(role) = params.role { user.role = role };
-    if let Some(balance) = params.balance { user.balance = balance };
+    if let Some(balance) = params.balance { 
+        if balance != user.balance {
+            let transaction = PendingTransaction {
+                user: Some(user.id), 
+                amount: balance - user.balance, 
+                products: Vec::new(),
+                admin_issued: true
+            };
+            crud::create_transaction(&state.db, transaction).await?;
+        }
+        user.balance = balance 
+    };
     user.name = params.name.clone();
     
     crud::update_user(&state.db, user).await?;

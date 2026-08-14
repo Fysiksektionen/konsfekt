@@ -294,13 +294,14 @@ pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), DatabaseEr
 pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransaction) -> Result<u32, DatabaseError> {
     let id: u32 = sqlx::query_scalar(
         r#"
-        INSERT INTO StoreTransaction (user, amount, datetime)
-        VALUES (?, ?, ?)
+        INSERT INTO StoreTransaction (user, amount, datetime, admin_issued)
+        VALUES (?, ?, ?, ?)
         RETURNING id
         "#
     ).bind(transaction.user)
     .bind(transaction.amount)
     .bind(UtcDateTime::now().unix_timestamp())
+    .bind(transaction.admin_issued)
     .fetch_one(pool).await?;
     for (product, quantity) in transaction.products {
         sqlx::query(
@@ -330,7 +331,7 @@ pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Resul
 
 pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, DatabaseError> {
     let transaction: TransactionRow = sqlx::query_as(r#"
-        SELECT id, user, amount, datetime
+        SELECT id, user, amount, datetime, admin_issued
         FROM StoreTransaction
         WHERE id = ?
         "#).bind(transaction_id).fetch_one(pool).await?;
@@ -360,7 +361,7 @@ const PAYMENT_KEYWORDS: [&str; 4] = [
 
 pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, DatabaseError> {
     let mut builder = QueryBuilder::new(r#"
-        SELECT st.id, u.email AS user_email, st.amount, st.datetime
+        SELECT st.id, u.email AS user_email, st.amount, st.datetime, st.admin_issued
         FROM StoreTransaction st
         LEFT JOIN User u ON u.id = st.user
         WHERE 1=1
@@ -398,7 +399,12 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     if let Some(time_range) = query.time_range {
         time_range.push_onto_builder(&mut builder, " AND ");
     }
-    
+
+    // ADMIN ISSUED
+    if let Some(admin_issued) = query.admin_issued {
+        builder.push(" AND st.admin_issued = ").push_bind(admin_issued);
+    }
+
     // CURSOR
     if let Some(cursor) = query.cursor {
         let cmp = if query.descending { '<' } else { '>' };

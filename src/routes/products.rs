@@ -133,7 +133,8 @@ pub async fn buy_single_product(state: Data<AppState>, req: HttpRequest, product
             false => Some(user.id)
         },
         products: vec![(product.clone(), 1)],
-        amount: -product.price
+        amount: -product.price,
+        admin_issued: false
     };
 
     let transaction_id = database::crud::create_transaction(&state.db, transaction).await?;
@@ -179,7 +180,8 @@ pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Js
             false => Some(user.id)
         },
         products: products.clone(),
-        amount: -total_price
+        amount: -total_price,
+        admin_issued: false
     };
 
     database::crud::create_transaction(&state.db, transaction).await?;

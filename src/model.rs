@@ -103,7 +103,8 @@ impl ProductFlags {
 pub struct PendingTransaction {
     pub user: Option<u32>, // None if user has private_transactions
     pub amount: f32,
-    pub products: Vec<(ProductRow, u32)>
+    pub products: Vec<(ProductRow, u32)>,
+    pub admin_issued: bool
 }
 
 #[derive(serde::Serialize)]
@@ -131,6 +132,7 @@ pub struct TransactionDetail {
     pub amount: f32,
     pub user: Option<UserResponse>, // None if user has private_transactions
     pub datetime: i64,
+    pub admin_issued: bool,
     items: Vec<TransactionItem>
 }
 
@@ -139,6 +141,7 @@ pub struct TransactionSummary {
     pub id: u32,
     pub amount: f32,
     pub user_email: String,
+    pub admin_issued: bool,
     pub datetime: i64,
 }
 
@@ -159,6 +162,7 @@ impl TransactionDetail {
             amount: transaction.amount,
             user: user_response,
             datetime: transaction.datetime,
+            admin_issued: transaction.admin_issued,
             items: Vec::new()
         }
     }
@@ -170,6 +174,7 @@ pub struct TransactionQuery {
     pub product_ids: Vec<u32>,
     pub time_range: Option<stats::TimeRange>,
     pub search_term: Option<String>,
+    pub admin_issued: Option<bool>,
     pub cursor: Option<TimeIdCursor>, // pagination
     pub limit: u32,
     pub descending: bool,
