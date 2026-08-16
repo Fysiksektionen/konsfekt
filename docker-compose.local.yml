@@ -1,0 +1,5 @@
+services:
+  konsfekt:
+    command: ["konsfekt", "--local", "--static"]
+    ports:
+      - "8080:8080"

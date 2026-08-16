@@ -124,3 +124,12 @@ This starts two containers:
 - `caddy` — reverse proxy that terminates HTTPS for `SITE_DOMAIN` and forwards everything to `konsfekt`. 
 Publishes ports `80`/`443` on the host and automatically obtains a Let's Encrypt certificate via ACME (`http-01`/`tls-alpn-01`), 
 which requires that `SITE_DOMAIN` actually resolves to this host and that ports 80/443 are reachable from the internet — see [docs/port-forwarding.md](docs/port-forwarding.md) if deploying behind a home router.
+
+### Local Docker
+To test the container without `caddy`/HTTPS but still using docker, the app can be run with the following command:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build konsfekt
+```
+
+Remember that Swish operations will not be possible as the app is not being run with HTTPS.
