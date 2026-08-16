@@ -39,6 +39,8 @@ It will enable you to test making payments end-to-end with the Swish test app fo
 
 > NOTE: `https` is required when testing Swish functionality. See [Tunneling](#tunneling---develop-with-https).
 
+See [docs/swish-production.md](docs/swish-production.md) for what's left to go live with Swish production.
+
 ### Running
 Depending on what you want to develop, the app can be run in different ways.
 
@@ -113,7 +115,7 @@ Create a `.env` from `template.env` and set a value for the following:
 - `CERTIFICATES_DIR` host path to the Swish certificates (see [Setup Swish](#setup-swish))
 - `SWISH_NUMBER` the merchant Swish number
 - `SWISH_ENVIRONMENT` (`prod` or `sandbox`)
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` see [#Setup Google](#setup-google)
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` see [Setup Google](#setup-google)
 
 Run the containers with `docker compose up --build` (`--build` flag only needed the first time, or when new code/migrations has landed).
 
@@ -121,14 +123,4 @@ This starts two containers:
 - `konsfekt` — the app itself, built from the root `Dockerfile`. Not reachable directly from the host; only `caddy` talks to it, over the internal Docker network on port `8080`.
 - `caddy` — reverse proxy that terminates HTTPS for `SITE_DOMAIN` and forwards everything to `konsfekt`. 
 Publishes ports `80`/`443` on the host and automatically obtains a Let's Encrypt certificate via ACME (`http-01`/`tls-alpn-01`), 
-which requires that `SITE_DOMAIN` actually resolves to this host and that ports 80/443 are reachable from the internet — see below.
-
-### Deploying with router port forwarding
-This assumes the app runs on local hardware behind a home router, with no public IP forwarded yet.
-
-1. **Check you're not behind CGNAT.** Compare your public IP (`curl ifconfig.me`) against the WAN/internet IP shown in your router's admin page. If they don't match, your ISP isn't giving you a real public IP and port forwarding won't work — you'd need a tunneling service instead (see [Tunneling](#tunneling---develop-with-https)), or to request a public IP from your ISP.
-2. **Point DNS** for `SITE_DOMAIN` at your public IP. If your ISP doesn't give you a static IP, use a dynamic DNS service instead.
-3. **Log into your router's admin page** (usually `192.168.0.1` or `192.168.1.1` — check with `ip route | grep default`), using the router's admin credentials (often on a sticker on the device, or set by whoever configured it/your ISP).
-4. **Add two port forwarding rules** (may be labeled "Port Forwarding", "NAT", or "Virtual Server"): external port `80` → this machine's LAN IP (`hostname -I`) port `80`, and external port `443` → this machine's LAN IP port `443`.
-5. **Set `.env`** with `SITE_DOMAIN` matching the DNS record from step 2, and fill in the other required variables (see above).
-6. Run `docker compose up --build`. Caddy should obtain its certificate automatically on first boot — watch its logs for `certificate obtained successfully`. If the ACME challenge fails, double check DNS propagation and that the forwarding rules actually reach this machine (a port-checking tool like `canyouseeme.org` on port 80 is useful here).
+which requires that `SITE_DOMAIN` actually resolves to this host and that ports 80/443 are reachable from the internet — see [docs/port-forwarding.md](docs/port-forwarding.md) if deploying behind a home router.
