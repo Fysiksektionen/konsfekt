@@ -108,28 +108,66 @@ Build the app with `npx tauri build`
 Dependencies:
 - docker (docker compose)
 
-Create a `.env` from `template.env` and set a value for the following:
-- `SITE_DOMAIN` domain the webapp should be accessible at (used by Caddy to request its TLS certificate)
-- `DATABASE_DIR` host path to store the database and uploaded images
-- `PERMISSION_TABLE_PATH` host path to `permission_table.json`
-- `CERTIFICATES_DIR` host path to the Swish certificates (see [Setup Swish](#setup-swish))
-- `SWISH_NUMBER` the merchant Swish number
-- `SWISH_ENVIRONMENT` (`prod` or `sandbox`)
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` see [Setup Google](#setup-google)
+The app ships as a single container image, `ghcr.io/fysiksektionen/konsfekt`, which
+serves both the API and the static frontend on port `8080`. It does **not**
+terminate HTTPS — the host is expected to run its own reverse proxy that forwards
+`SITE_DOMAIN` traffic to that port.
 
-Run the containers with `docker compose up --build` (`--build` flag only needed the first time, or when new code/migrations has landed).
+`docker-compose.yml` is the reference for running it: what env vars and host paths
+a deployment needs. It pulls the published image; it does not build.
 
-This starts two containers:
-- `konsfekt` — the app itself, built from the root `Dockerfile`. Not reachable directly from the host; only `caddy` talks to it, over the internal Docker network on port `8080`.
-- `caddy` — reverse proxy that terminates HTTPS for `SITE_DOMAIN` and forwards everything to `konsfekt`. 
-Publishes ports `80`/`443` on the host and automatically obtains a Let's Encrypt certificate via ACME (`http-01`/`tls-alpn-01`), 
-which requires that `SITE_DOMAIN` actually resolves to this host and that ports 80/443 are reachable from the internet — see [docs/port-forwarding.md](docs/port-forwarding.md) if deploying behind a home router.
+### Releasing an image (developers)
+
+[`.github/workflows/docker.yml`](.github/workflows/docker.yml) builds from the root
+`Dockerfile` and pushes to GHCR on any `v*` tag. To cut a release:
+
+1. Make sure `main` is green and contains everything you want in the release.
+2. Tag with a [semver](https://semver.org) version and push the tag:
+   ```
+   git tag v1.4.0
+   git push origin v1.4.0
+   ```
+3. The workflow publishes `ghcr.io/fysiksektionen/konsfekt` as `1.4.0`, `1.4`, and
+   `latest`.
+4. First release only: an org admin must set the GHCR package's visibility to
+   public (Fysiksektionen → Packages → `konsfekt` → Package settings), otherwise
+   the host needs a personal access token with `read:packages` to pull.
+
+### Deploying on the host
+
+Needs `docker` with the compose plugin, and a copy of `docker-compose.yml` (plus
+this repo's `template.env` for reference).
+
+1. Create `.env` from `template.env` and set:
+   - `SITE_DOMAIN` public URL the webapp is served at (used for OAuth redirects and cookies)
+   - `DATABASE_DIR` host path to store the database and uploaded images
+   - `PERMISSION_TABLE_PATH` host path to `permission_table.json`
+   - `CERTIFICATES_DIR` host path to the Swish certificates (see [Setup Swish](#setup-swish))
+   - `SWISH_NUMBER` the merchant Swish number
+   - `SWISH_ENVIRONMENT` (`prod` or `sandbox`)
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` see [Setup Google](#setup-google)
+2. Create the paths referenced above: the `DATABASE_DIR` and `CERTIFICATES_DIR`
+   directories, and a `permission_table.json` file (start from the one in this repo).
+3. Point the host's reverse proxy at `127.0.0.1:8080` and let it serve HTTPS for
+   `SITE_DOMAIN`.
+4. Start it:
+   ```
+   docker compose pull
+   docker compose up -d
+   ```
+5. To upgrade later, repeat step 4 — `pull` fetches the new `latest`, `up -d`
+   recreates the container. Pin a specific release by setting
+   `image: ghcr.io/fysiksektionen/konsfekt:1.4.0` in `docker-compose.yml` instead.
+
+The permission table is bind-mounted and can be edited on the host, but the app
+reads it only at startup — run `docker compose restart konsfekt` after changing it.
 
 ### Local Docker
-To test the container without `caddy`/HTTPS but still using docker, the app can be run with the following command:
+To build from source and run the app locally (local mode, no HTTPS):
 
 ```
 docker compose -f docker-compose.yml -f docker-compose.local.yml up --build konsfekt
 ```
 
-Remember that Swish operations will not be possible as the app is not being run with HTTPS.
+`docker-compose.local.yml` overrides the image with a local build (`konsfekt:local`)
+so this never runs a pulled release. Swish operations will not work without HTTPS.

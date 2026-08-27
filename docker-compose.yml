@@ -1,26 +1,19 @@
+# Reference deployment. This is not built here: the image is built and published
+# to GHCR by .github/workflows/docker.yml whenever a `v*` tag is pushed. Pull it
+# with `docker compose pull`.
+#
+# HTTPS is expected to be terminated by the host's own proxy, which forwards to
+# the port published below. There is no reverse proxy in this file.
 services:
   konsfekt:
-    build: .
+    image: ghcr.io/fysiksektionen/konsfekt:latest
+    restart: unless-stopped
     env_file: ".env"
+    ports:
+      - "8080:8080"
     volumes:
       - ${DATABASE_DIR}:/konsfekt/db
+      # Editable on the host; the app currently reads it only at startup, so run
+      # `docker compose restart konsfekt` after changing it.
       - ${PERMISSION_TABLE_PATH}:/konsfekt/permission_table.json
       - ${CERTIFICATES_DIR}:/konsfekt/certificates
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-        - "80:80"
-        - "443:443"
-        - "443:443/udp"
-    environment:
-      SITE_DOMAIN: "${SITE_DOMAIN}"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-
-volumes:
-  caddy_data:
-  caddy_config:

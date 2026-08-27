@@ -1,5 +1,12 @@
+# Local dev override: build the image from source instead of pulling GHCR, and
+# run the app in local mode without HTTPS.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up --build konsfekt
 services:
   konsfekt:
+    build: .
+    # Override the GHCR image name from docker-compose.yml so a local `up` always
+    # runs this build, never a pulled release.
+    image: konsfekt:local
     command: ["konsfekt", "--local", "--static"]
     ports:
       - "8080:8080"
