@@ -16,6 +16,7 @@
       <a href="/" class="text-muted-foreground hover:text-foreground">Butik</a>
       <a href="/profil" class="text-muted-foreground hover:text-foreground">Min profil</a>
       <a href="/om" class="text-muted-foreground hover:text-foreground">Om denna sida</a>
+      <a href="/faq" class="text-muted-foreground hover:text-foreground">FAQ</a>
     </div>
 
     <div class="flex flex-col gap-2 text-sm">
