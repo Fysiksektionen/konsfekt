@@ -6,7 +6,7 @@ pub mod model;
 pub mod error;
 pub mod args;
 
-use std::{collections::HashMap, env, fs};
+use std::{env, fs};
 
 use reqwest::{Certificate, Client, Identity};
 use serde::{Deserialize, Serialize};
@@ -90,44 +90,10 @@ impl Role {
     }
 }
 
-#[derive(Clone)]
-pub struct PermissionTable {
-    table: HashMap<String, Role>,
-}
-
-impl PermissionTable {
-    pub fn new() -> Self {
-        let json_str = fs::read_to_string(String::from("./permission_table.json")).expect("Could not open permission table file");
-        let json: HashMap<String, Role> = serde_json::from_str(&json_str).unwrap();
-        return PermissionTable { table: json };
-    }
-
-    pub fn empty() -> Self {
-        // should log warning here
-        PermissionTable { table: HashMap::new() }
-    }
-
-    pub fn get(&self, path: &str) -> Option<Role> {
-        self.table.get(path).cloned()
-    }
-
-    pub fn check_access(&self, path: &str, user_perm: Role) -> bool {
-        match self.get(path) {
-            Some(perm) => user_perm >= perm, // greater than or equal permission level
-            None => true // assume true if not in table
-        }
-    }
-
-    pub fn contains(&self, path: &str) -> bool {
-        self.table.contains_key(path)
-    }
-}
-
 pub struct AppState {
     pub db: Pool<Sqlite>,
     pub client: Client,
     pub env: EnvironmentVariables,
-    pub permission_table: PermissionTable,
 }
 
 impl AppState {
@@ -149,8 +115,7 @@ impl AppState {
                 .add_root_certificate(ca)
                 .build()
                 .expect("Could not build reqwest::Client"),
-            env: env_vars.clone(),
-            permission_table: PermissionTable::new()
+            env: env_vars.clone()
         }
     }
 }

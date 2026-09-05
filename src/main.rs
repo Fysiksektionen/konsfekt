@@ -65,7 +65,6 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
         .allowed_origin("http://tauri.localhost");
     let mut app = App::new()
         .wrap(middleware::from_fn(routes::session_middleware))
-        .wrap(middleware::from_fn(routes::permission_middleware))
         .app_data(Data::new(AppState::from(pool.clone(), env.clone())))
         .app_data(actix_web::web::JsonConfig::default().error_handler(|err, req| {
             log::warn!("JSON body error on {}: {}", req.path(), err);

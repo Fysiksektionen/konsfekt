@@ -7,10 +7,12 @@ pub mod debug;
 pub mod payment;
 pub mod transactions;
 
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::Data};
+use std::pin::Pin;
+
+use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, body::BoxBody, dev::{ServiceRequest, ServiceResponse}, middleware, web::{self, Data}};
 use sqlx::SqlitePool;
 
-use crate::{AppState, auth, database::model::UserRow, error::AppError, utils::{self, get_path}};
+use crate::{AppState, Role, auth, database::model::UserRow, error::{ApiResult, AppError}, return_err, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
 const PATH_WHITELIST: [&str; 4] = [
@@ -19,6 +21,71 @@ const PATH_WHITELIST: [&str; 4] = [
     "/api/auth/google/callback",
     payment::swish::CALLBACK_URL,
 ];
+
+pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
+    let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
+
+    Ok(user)
+}
+
+//
+//      CurrentUser Extractor
+//
+
+struct CurrentUser {
+    user: UserRow,
+}
+
+impl CurrentUser {
+
+    pub fn require_role(self, role: Role) -> ApiResult<Self> {
+        if self.user.role >= role {
+            return Ok(self);
+        };
+
+        return_err!(actix_web::error::ErrorForbidden("User doesn't have the requierd role for this request."));
+    }
+
+    pub fn into_row(self) -> UserRow {
+        self.user
+    }
+
+}
+
+impl FromRequest for CurrentUser {
+    type Error = actix_web::Error;
+    type Future = Pin<Box<
+        dyn Future<Output = ApiResult<Self>>
+    >>;
+
+    fn from_request(req: &HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+
+        let state = req
+            .app_data::<web::Data<AppState>>()
+            .cloned();
+        
+        let cookie = req.cookie(auth::AUTH_COOKIE).clone();
+
+        Box::pin(async move {
+            let state = state.ok_or_else(|| {
+                actix_web::error::ErrorInternalServerError("Cant get AppState")
+            })?;
+
+            let cookie = cookie.ok_or_else(|| {
+                actix_web::error::ErrorUnauthorized("Not authenticated")
+            })?;
+
+            let user = auth::get_user_from_cookie(
+                &state.db,
+                Some(cookie),
+            )
+            .await?;
+
+            Ok(CurrentUser { user })
+        })
+    }
+}
+
 
 //
 //          Middleware
@@ -97,32 +164,4 @@ pub async fn api_logging_middleware<B: actix_web::body::MessageBody>(
     let res = next.call(req).await?;
     log::debug!("{method} {path} {} {:?}", res.status(), start.elapsed());
     Ok(res)
-}
-
-pub async fn permission_middleware(
-    state: Data<AppState>,
-    req: ServiceRequest,
-    next: middleware::Next<BoxBody>
-) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
-    
-    let path = req.path();
-    if !state.permission_table.contains(path) {
-        return next.call(req).await;
-    }
-
-    let user = match auth::get_user_from_cookie(&state.db, req.cookie(auth::AUTH_COOKIE)).await {
-        Ok(user) => user,
-        Err(_) => return next.call(req).await
-    };
-
-    match state.permission_table.check_access(req.path(), user.role) {
-        true => next.call(req).await,
-        false => Err(actix_web::error::ErrorForbidden("Access Denied")),
-    }
-}
-
-pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
-    let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
-
-    Ok(user)
 }
