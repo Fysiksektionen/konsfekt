@@ -22,12 +22,6 @@ const PATH_WHITELIST: [&str; 4] = [
     payment::swish::CALLBACK_URL,
 ];
 
-pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
-    let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
-
-    Ok(user)
-}
-
 //
 //      CurrentUser Extractor
 //
@@ -84,6 +78,17 @@ impl FromRequest for CurrentUser {
             Ok(CurrentUser { user })
         })
     }
+}
+
+
+//
+//          Helper Functions
+//
+
+pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
+    let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
+
+    Ok(user)
 }
 
 

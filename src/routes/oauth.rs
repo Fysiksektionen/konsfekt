@@ -2,7 +2,7 @@ use actix_web::{HttpMessage, HttpRequest, HttpResponse, cookie::Cookie, get, web
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{AppState, auth::{self, Session}, database::crud, error::{ApiResult, ClientError}, return_err, routes::user_from_cookie, utils};
+use crate::{AppState, auth::{self, Session}, database::crud, error::{ApiResult, ClientError}, return_err, routes::{CurrentUser, user_from_cookie}, utils};
 
 //
 //              Google OAuth
@@ -112,8 +112,9 @@ pub async fn logout(state: Data<AppState>, req: HttpRequest) -> ApiResult<HttpRe
 }
 
 #[get("/api/auth/change_email")]
-pub async fn change_email(state: Data<AppState>, req: HttpRequest) -> ApiResult<HttpResponse> {
-    let user = user_from_cookie(&state.db, &req).await?;
+pub async fn change_email(state: Data<AppState>, current_user: CurrentUser) -> ApiResult<HttpResponse> {
+    // let user = user_from_cookie(&state.db, &req).await?;
+    let user = current_user.into_row();
     crud::initiate_email_switch(&state.db, user.id).await?;
 
     Ok(HttpResponse::Found()

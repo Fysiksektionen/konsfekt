@@ -1,9 +1,9 @@
-use actix_web::{HttpRequest, get, post, web::{self, Data, Json}};
+use actix_web::{get, post, web::{self, Data, Json}};
 use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use sqlx::SqlitePool;
 use time::OffsetDateTime;
 
-use crate::{AppState, Role, database::{self, model::UserRow}, error::ApiResult, model::{PendingTransaction, Product, ProductParams}, return_err, routes::user_from_cookie, utils};
+use crate::{AppState, Role, database::{self, model::UserRow}, error::ApiResult, model::{PendingTransaction, Product, ProductParams}, return_err, routes::{CurrentUser}, utils};
 
 fn product_assert_permission(product: &Product, user: &UserRow) -> ApiResult<()> {
     if !product.flags.modifiable && user.role != Role::Admin {
@@ -38,7 +38,9 @@ struct TransactionIdJson {
 }
 
 #[post("/api/create_product")]
-pub async fn create_product(state: Data<AppState>, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> ApiResult<impl actix_web::Responder> {
+pub async fn create_product(state: Data<AppState>, current_user: CurrentUser, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> ApiResult<impl actix_web::Responder> {
+    current_user.require_role(Role::Maintainer)?;
+
     let product = Product::from_request(form.product.into_inner())
         .map_err(|_| actix_web::error::ErrorBadRequest("Missing required arguments"))?;
     let product_row = database::crud::create_product(&state.db, product.into_row()).await?;
@@ -54,8 +56,9 @@ pub async fn create_product(state: Data<AppState>, MultipartForm(form): Multipar
 }
 
 #[post("/api/update_product")]
-pub async fn update_product(state: Data<AppState>, req: HttpRequest, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> ApiResult<impl actix_web::Responder> {
-    let user = user_from_cookie(&state.db, &req).await?;
+pub async fn update_product(state: Data<AppState>, current_user: CurrentUser, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> ApiResult<impl actix_web::Responder> {
+    // let user = user_from_cookie(&state.db, &req).await?;
+    let user = current_user.require_role(Role::Maintainer)?.into_row();
     let mut product = get_product_from_id(&state.db, form.product.id).await?;
     let params = form.product.into_inner();
 
@@ -96,8 +99,9 @@ pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJso
 }
 
 #[post("/api/delete_product")]
-pub async fn delete_product(state: Data<AppState>, req: HttpRequest, params: web::Json<ProductIdJson>) -> ApiResult<impl actix_web::Responder> {
-    let user = user_from_cookie(&state.db, &req).await?;
+pub async fn delete_product(state: Data<AppState>, current_user: CurrentUser, params: web::Json<ProductIdJson>) -> ApiResult<impl actix_web::Responder> {
+    // let user = user_from_cookie(&state.db, &req).await?;
+    let user = current_user.require_role(Role::Maintainer)?.into_row();
     let product = get_product_from_id(&state.db, Some(params.id)).await?;
 
     product_assert_permission(&product, &user)?;
@@ -116,8 +120,9 @@ pub async fn get_products(state: Data<AppState>) -> ApiResult<impl actix_web::Re
 }
 
 #[post("/api/buy_single_product")]
-pub async fn buy_single_product(state: Data<AppState>, req: HttpRequest, product: web::Json<ProductIdJson>) -> ApiResult<Json<TransactionIdJson>> {
-    let user = user_from_cookie(&state.db, &req).await?;
+pub async fn buy_single_product(state: Data<AppState>, current_user: CurrentUser, product: web::Json<ProductIdJson>) -> ApiResult<Json<TransactionIdJson>> {
+    // let user = user_from_cookie(&state.db, &req).await?;
+    let user = current_user.require_role(Role::User)?.into_row();
     let product = database::crud::get_product(&state.db, product.id).await?;
 
     if product.stock.is_none() {
@@ -158,8 +163,9 @@ struct ProductInCart {
 }
 
 #[post("/api/buy_products")]
-pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Json<Cart>) -> ApiResult<()> {
-    let user = user_from_cookie(&state.db, &req).await?;
+pub async fn buy_products(state: Data<AppState>, current_user: CurrentUser, cart: web::Json<Cart>) -> ApiResult<()> {
+    // let user = user_from_cookie(&state.db, &req).await?;
+    let user = current_user.require_role(Role::User)?.into_row();
     let mut products = Vec::new();
     for p in &cart.products {
         let product = database::crud::get_product(&state.db, p.id).await?;
@@ -196,8 +202,9 @@ pub async fn buy_products(state: Data<AppState>, req: HttpRequest, cart: web::Js
 }
 
 #[post("/api/undo_transaction")]
-pub async fn undo_transaction(state: Data<AppState>, req: HttpRequest, transaction_id: web::Json<TransactionIdJson>) -> ApiResult<()> {
-    let user = user_from_cookie(&state.db, &req).await?;
+pub async fn undo_transaction(state: Data<AppState>, current_user: CurrentUser, transaction_id: web::Json<TransactionIdJson>) -> ApiResult<()> {
+    // let user = user_from_cookie(&state.db, &req).await?;
+    let user = current_user.require_role(Role::User)?.into_row();
     let transaction = database::crud::get_transaction(&state.db, transaction_id.transaction_id).await?;
 
     if user.id != transaction.user {

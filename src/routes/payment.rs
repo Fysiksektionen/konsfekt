@@ -6,7 +6,7 @@ pub mod swish {
     use actix_web::{HttpRequest, HttpResponse, get, http::StatusCode, post, web::{self, Data}};
     use uuid::Uuid;
 
-    use crate::{AppState, database::{self, crud, model::SwishPaymentRequestRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishErrorResponse}, model::PendingTransaction, return_err, routes::user_from_cookie};
+    use crate::{AppState, Role, database::{self, crud, model::SwishPaymentRequestRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishErrorResponse}, model::PendingTransaction, return_err, routes::{CurrentUser}};
 
     pub const CALLBACK_URL: &str = "/api/payment/swish/callback"; // If changing URL: Remember to change post function
     pub const SWISH_QR_CODE_API: &str = "https://mpc.getswish.net/qrg-swish/api/v1/commerce";
@@ -130,8 +130,9 @@ pub mod swish {
     }
 
     #[post("/api/payment/swish/create_payment_request")]
-    pub async fn create_payment_request(state: Data<AppState>, req: HttpRequest, query: web::Query<CreatePaymentRequestQuery>) -> ApiResult<web::Json<CreatePaymentRequestResponse>> {
-        let user = user_from_cookie(&state.db, &req).await?;
+    pub async fn create_payment_request(state: Data<AppState>, current_user: CurrentUser, query: web::Query<CreatePaymentRequestQuery>) -> ApiResult<web::Json<CreatePaymentRequestResponse>> {
+        // let user = user_from_cookie(&state.db, &req).await?;
+        let user = current_user.require_role(Role::User)?.into_row();
 
         if query.amount < 30.0 {
             return_err!(actix_web::error::ErrorBadRequest("amount < 30 kr"));
@@ -197,8 +198,9 @@ pub mod swish {
     }
 
     #[get("/api/payment/status/{payment_id}")]
-    pub async fn check_status(state: Data<AppState>, req: HttpRequest, path: web::Path<String>) -> ApiResult<web::Json<PaymentStatusResponse>> {
-        let user = user_from_cookie(&state.db, &req).await?;
+    pub async fn check_status(state: Data<AppState>, current_user: CurrentUser, path: web::Path<String>) -> ApiResult<web::Json<PaymentStatusResponse>> {
+        // let user = user_from_cookie(&state.db, &req).await?;
+        let user = current_user.require_role(Role::User)?.into_row();
         let payment_request = crud::get_payment_request(&state.db, path.into_inner()).await?;
         if payment_request.user != user.id {
             return_err!(actix_web::error::ErrorForbidden("Cannot get other user's payment status"));
@@ -219,8 +221,9 @@ pub mod swish {
     }
 
     #[get("/api/payment/qr/{payment_id}")]
-    pub async fn get_qr_code(state: Data<AppState>, req: HttpRequest, path: web::Path<String>) -> ApiResult<HttpResponse> {
-        let user = user_from_cookie(&state.db, &req).await?;
+    pub async fn get_qr_code(state: Data<AppState>, current_user: CurrentUser, path: web::Path<String>) -> ApiResult<HttpResponse> {
+        // let user = user_from_cookie(&state.db, &req).await?;
+        let user = current_user.require_role(Role::User)?.into_row();
         let payment_request = crud::get_payment_request(&state.db, path.into_inner()).await?;
         if payment_request.user != user.id {
             return_err!(actix_web::error::ErrorForbidden("Cannot retrieve QR code for other user's payment"));
