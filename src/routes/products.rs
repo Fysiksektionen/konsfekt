@@ -1,9 +1,13 @@
 use actix_web::{get, post, web::{self, Data, Json}};
 use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 use sqlx::SqlitePool;
 use time::OffsetDateTime;
 
-use crate::{AppState, Role, database::{self, model::UserRow}, error::ApiResult, model::{PendingTransaction, Product, ProductParams}, return_err, routes::{CurrentUser}, utils};
+type HmacSha256 = Hmac<Sha256>;
+
+use crate::{AppState, Role, database::{self, model::UserRow}, error::{ApiResult, AppError, GenericError}, model::{PendingTransaction, Product, ProductParams}, return_err, routes::CurrentUser, utils};
 
 fn product_assert_permission(product: &Product, user: &UserRow) -> ApiResult<()> {
     if !product.flags.modifiable && user.role != Role::Admin {
@@ -33,8 +37,24 @@ struct ProductAndImageForm {
 struct ProductIdJson { id: u32 }
 
 #[derive(sqlx::FromRow, serde::Serialize, serde::Deserialize)]
-struct TransactionIdJson {
+struct PurchaseResponse {
     transaction_id: u32,
+    token: Option<String>, // Only needed if user has anonymous transactions enabled
+}
+
+fn create_undo_token(secret: &str, transaction_id: u32) -> Result<String, AppError> {
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|_| GenericError::new("Could not initialize HMAC"))?;
+    mac.update(&transaction_id.to_le_bytes());
+    Ok(hex::encode(mac.finalize().into_bytes()))
+}
+
+fn verify_undo_token(secret: &str, transaction_id: u32, token_hex: &str) -> Result<bool, AppError> {
+    let Ok(token) = hex::decode(token_hex) else { return Ok(false) };
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|_| GenericError::new("Could not initialize HMAC"))?;
+    mac.update(&transaction_id.to_le_bytes());
+    Ok(mac.verify_slice(&token).is_ok())
 }
 
 #[post("/api/create_product")]
@@ -120,7 +140,7 @@ pub async fn get_products(state: Data<AppState>) -> ApiResult<impl actix_web::Re
 }
 
 #[post("/api/buy_single_product")]
-pub async fn buy_single_product(state: Data<AppState>, current_user: CurrentUser, product: web::Json<ProductIdJson>) -> ApiResult<Json<TransactionIdJson>> {
+pub async fn buy_single_product(state: Data<AppState>, current_user: CurrentUser, product: web::Json<ProductIdJson>) -> ApiResult<Json<PurchaseResponse>> {
     // let user = user_from_cookie(&state.db, &req).await?;
     let user = current_user.require_role(Role::User)?.into_row();
     let product = database::crud::get_product(&state.db, product.id).await?;
@@ -148,7 +168,8 @@ pub async fn buy_single_product(state: Data<AppState>, current_user: CurrentUser
     let new_stock = Some(product.stock.unwrap() - 1 as i32);
     database::crud::update_product_stock(&state.db, product.id, new_stock).await?;
 
-    Ok(Json(TransactionIdJson { transaction_id }))
+    let token = create_undo_token(&state.env.undo_purchase_secret, transaction_id)?;
+    Ok(Json(PurchaseResponse { transaction_id, token: Some(token) }))
 }
 
 #[derive(serde::Deserialize)]
@@ -163,7 +184,7 @@ struct ProductInCart {
 }
 
 #[post("/api/buy_products")]
-pub async fn buy_products(state: Data<AppState>, current_user: CurrentUser, cart: web::Json<Cart>) -> ApiResult<()> {
+pub async fn buy_products(state: Data<AppState>, current_user: CurrentUser, cart: web::Json<Cart>) -> ApiResult<Json<PurchaseResponse>> {
     // let user = user_from_cookie(&state.db, &req).await?;
     let user = current_user.require_role(Role::User)?.into_row();
     let mut products = Vec::new();
@@ -190,7 +211,7 @@ pub async fn buy_products(state: Data<AppState>, current_user: CurrentUser, cart
         admin_issued: false
     };
 
-    database::crud::create_transaction(&state.db, transaction).await?;
+    let transaction_id = database::crud::create_transaction(&state.db, transaction).await?;
     database::crud::update_user_balance(&state.db, user.id, user.balance - total_price).await?;
 
     for (product, quantity) in products {
@@ -198,24 +219,44 @@ pub async fn buy_products(state: Data<AppState>, current_user: CurrentUser, cart
         database::crud::update_product_stock(&state.db, product.id, new_stock).await?;
     }
 
-    Ok(())
+    let token = create_undo_token(&state.env.undo_purchase_secret, transaction_id)?;
+    Ok(Json(PurchaseResponse { transaction_id, token: Some(token) }))
 }
 
-#[post("/api/undo_transaction")]
-pub async fn undo_transaction(state: Data<AppState>, current_user: CurrentUser, transaction_id: web::Json<TransactionIdJson>) -> ApiResult<()> {
+#[post("/api/undo_purchase")]
+pub async fn undo_purchase(state: Data<AppState>, current_user: CurrentUser, purchase_response: web::Json<PurchaseResponse>) -> ApiResult<()> {
     // let user = user_from_cookie(&state.db, &req).await?;
     let user = current_user.require_role(Role::User)?.into_row();
-    let transaction = database::crud::get_transaction(&state.db, transaction_id.transaction_id).await?;
+    let transaction = database::crud::get_transaction(&state.db, purchase_response.transaction_id).await?;
 
-    if user.id != transaction.user {
-        return_err!(actix_web::error::ErrorForbidden("Cannot undo another user's transaction"));
+    if transaction.amount > 0.0 {
+        return_err!(actix_web::error::ErrorConflict("Cannot undo a deposit"));
+    }
+
+    match transaction.user {
+        Some(owner) if owner == user.id => {}
+        Some(_) => {
+            return_err!(actix_web::error::ErrorForbidden("Cannot undo another user's transaction"));
+        }
+        None => {
+            let Some(token) = &purchase_response.token else {
+                return_err!(actix_web::error::ErrorForbidden("Need purchase token to undo purchase"));
+            };
+            let is_valid_token = verify_undo_token(
+                &state.env.undo_purchase_secret, 
+                purchase_response.transaction_id, 
+                &token)?;
+            if !is_valid_token {
+                return_err!(actix_web::error::ErrorForbidden("Could not verify ownership of purchase"));
+            }
+        }
     }
     if OffsetDateTime::now_utc().unix_timestamp() - transaction.datetime > 60 {
         return_err!(actix_web::error::ErrorConflict("Transaction cannot be undone anymore"));
     }
 
     database::crud::update_user_balance(&state.db, user.id, user.balance + transaction.amount.abs()).await?;
-    database::crud::delete_transaction(&state.db, transaction_id.transaction_id).await?;
+    database::crud::delete_transaction(&state.db, purchase_response.transaction_id).await?;
 
     Ok(())
 }

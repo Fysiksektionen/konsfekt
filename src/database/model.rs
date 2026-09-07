@@ -27,7 +27,7 @@ pub struct ProductRow {
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct TransactionRow {
     pub id: u32,
-    pub user: u32,
+    pub user: Option<u32>,
     pub amount: f32,
     pub admin_issued: bool,
     pub datetime: i64

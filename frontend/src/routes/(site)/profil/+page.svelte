@@ -3,17 +3,63 @@
   import { Input } from '$lib/components/ui/input';
 	import type { PageProps } from './$types';
   import * as Item from "$lib/components/ui/item/index.js";
-  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
   import Footer from '$lib/components/Footer.svelte';
-    import { backendPOST } from "$lib/utils";
+    import { backendPOST, UNDO_PURCHASE_WINDOW_SECONDS, undoPurchase, type TransactionSummary } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { invalidateAll } from '$app/navigation';
     import TransactionTable from '$lib/components/TransactionTable.svelte';
     import { toast } from 'svelte-sonner';
+    import { undoablePurchases } from '$lib/storage.svelte';
+    import { fetchJSON, type TransactionDetail } from '$lib/utils';
+    import Badge from '$lib/components/ui/badge/badge.svelte';
+    import { onMount } from 'svelte';
+    import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
 
 	let { data }: PageProps = $props();
+
+  let undoablePurchasesDetail = $state<TransactionDetail[]>([]);
+  let transactions = $state<TransactionSummary[]>(data.transactions);
+  let currentTime = $state(Math.floor(Date.now()/1000));
+
+  onMount(() => {
+   const interval = setInterval(() => {
+   	currentTime = Math.floor(Date.now()/1000);
+   }, 1000);
   
+   return () => {
+   	clearInterval(interval);
+   };
+	});
+
+  $effect(() => {
+    const ids = Object.keys(undoablePurchases.purchases).map(Number);
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    Promise.all(
+      ids.map((txId) =>
+        fetchJSON(fetch, "/api/get_detailed_transaction/" + txId)
+          .then((tx: TransactionDetail) => tx)
+          .catch(() => null)
+      )
+    ).then((results) => {
+      const fresh = results.filter(
+        (tx): tx is TransactionDetail => tx !== null && currentTime - tx.datetime < UNDO_PURCHASE_WINDOW_SECONDS
+      );
+      undoablePurchasesDetail = fresh;
+      const keep = fresh.map((tx) => tx.id);
+      if (keep.length !== ids.length) {
+        // Rebuild the id→token map with only the still-undoable purchases.
+        undoablePurchases.purchases = Object.fromEntries(
+          keep.map((id) => [id, undoablePurchases.purchases[id]])
+        );
+      }
+      // Don't want to display transactions in transaction table too
+
+      transactions = transactions.filter(tx => !keep.includes(tx.id))
+    });
+  });
+
   let username = $state(data.user.name);
   
   const isAdmin = ["admin", "maintainer"].includes(data.user.role);
@@ -103,14 +149,52 @@
       <Item.Content>
         <Item.Title><a href="/om#anonyma-köp">Anonyma köp</a></Item.Title>
         <Item.Description>
-          Vill du att dina köp <u>inte</u> ska kopplas till ditt namn?
+          Vill du att dina köp <u>inte</u> ska kopplas till ditt namn? 
+          <a href="/om#anonyma-köp">Läs mer </a>
         </Item.Description>
       </Item.Content>
       <Item.Actions>
         <Switch bind:checked={privateTransactionsEnabled} onclick={() => changeUserFlag("private_transactions", !privateTransactionsEnabled)}/>
       </Item.Actions>
     </Item.Root>
-    <TransactionTable transactions={data.transactions} isAdminTable={false}/>
+    {#if undoablePurchasesDetail.length > 0}
+    <h4 class="scroll-m-20 text-xl font-semibold tracking-tight">
+      Senaste köp
+    </h4>
+    <div class="flex w-full max-w-[500px] flex-col gap-2">
+    {#key currentTime}
+    {#each undoablePurchasesDetail as transaction (transaction.id)}
+      {@const secondsLeft = UNDO_PURCHASE_WINDOW_SECONDS - (currentTime - transaction.datetime)}
+      {@const canUndo = secondsLeft > 0}
+      <Item.Root variant="outline">
+        <Item.Content>
+          <Item.Title>
+            {transaction.items.map((item) => `${item.quantity}× ${item.name}`).join(", ")}
+          </Item.Title>
+          <Item.Description>
+            <div class="flex gap-3">
+              <Badge variant="outline" class="font-mono">T{transaction.id}</Badge>
+              <span class="font-mono text-red-500">−{Math.abs(transaction.amount)} kr</span>
+            </div>
+          </Item.Description>
+        </Item.Content>
+        <Item.Actions>
+          <Button
+            size="sm"
+            variant="secondary"
+            class="text-card-foreground"
+            disabled={!canUndo}
+            onclick={() => undoPurchase(transaction.id)}>
+            <RotateCcwIcon class="size-4" />
+            Ångra köp {secondsLeft > 0 ? secondsLeft : ""}
+          </Button>
+        </Item.Actions>
+      </Item.Root>
+    {/each}
+    {/key}
+    </div>
+    {/if}
+    <TransactionTable transactions={transactions} isAdminTable={false}/>
     {#if data.transactions.length > 0}
       <Button href="/profil/koppla-bort-transaktioner" variant="link" class="text-foreground">
         Dissociera transaktioner från mitt konto

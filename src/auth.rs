@@ -1,14 +1,11 @@
 use actix_web::{cookie::Cookie, http::StatusCode};
-use rand::{rngs::OsRng, TryRngCore};
 use sha2::{Digest, Sha256};
 use sqlx::{Result, SqlitePool};
 use time::{Duration, OffsetDateTime};
 use hex;
 
-use crate::{database::{crud, model}, error::{AppError, AuthError, DatabaseError}};
+use crate::{database::{crud, model}, error::{AppError, AuthError, DatabaseError}, utils};
 
-// Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
-const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
 pub const AUTH_COOKIE: &str = "session-token";
 
 #[derive(sqlx::FromRow, serde::Serialize, Clone)]
@@ -74,7 +71,7 @@ pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'stat
 
 pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<(Session, String), AppError> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
-    let (id, secret) = match (gen_secure_random_str(), gen_secure_random_str()) {
+    let (id, secret) = match (utils::gen_secure_random_str(), utils::gen_secure_random_str()) {
         (Some(id), Some(secret)) => (id, secret),
         _ => {
             log::debug!("Could not generate random string for session creation");
@@ -142,17 +139,6 @@ async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Ses
 async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<(), DatabaseError> {
     sqlx::query("DELETE FROM Session WHERE id = ?").bind(session_id).execute(pool).await?;
     Ok(())
-}
-
-fn gen_secure_random_str() -> Option<String> {
-    let mut rand_bytes = [0u8;32];
-    OsRng.try_fill_bytes(&mut rand_bytes).ok()?;
-    let mut result = String::new();
-    for rand in rand_bytes {
-        let i = (rand >> 3) as usize;
-        result.push(READABLE_ALPHABET[i] as char);
-    }
-    return Some(result);
 }
 
 fn eq_hashes(hash1: Vec<u8>, hash2: Vec<u8>) -> bool {

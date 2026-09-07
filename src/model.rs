@@ -140,7 +140,7 @@ pub struct TransactionDetail {
 pub struct TransactionSummary {
     pub id: u32,
     pub amount: f32,
-    pub user_email: String,
+    pub user_email: Option<String>,
     pub admin_issued: bool,
     pub datetime: i64,
 }

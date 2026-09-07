@@ -100,7 +100,7 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
 
         .service(routes::products::buy_products)
         .service(routes::products::buy_single_product)
-        .service(routes::products::undo_transaction)
+        .service(routes::products::undo_purchase)
         .service(routes::products::mark_sold_out)
         
         // Swish API

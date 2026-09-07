@@ -1,5 +1,6 @@
 use std::{fs, io::BufReader};
 
+use rand::{rngs::OsRng, TryRngCore};
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::web::Data;
 use image::ImageReader;
@@ -7,6 +8,19 @@ use time::OffsetDateTime;
 
 use crate::{AppState, error::GenericError};
 
+// Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
+const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
+
+pub fn gen_secure_random_str() -> Option<String> {
+    let mut rand_bytes = [0u8;32];
+    OsRng.try_fill_bytes(&mut rand_bytes).ok()?;
+    let mut result = String::new();
+    for rand in rand_bytes {
+        let i = (rand >> 3) as usize;
+        result.push(READABLE_ALPHABET[i] as char);
+    }
+    return Some(result);
+}
 
 /// Constructs a path relative to frontend url from `path` 
 pub fn get_path(state: &Data<AppState>, path: &str) -> String {

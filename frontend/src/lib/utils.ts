@@ -1,7 +1,7 @@
 import { error, redirect } from "@sveltejs/kit";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { cart } from "./storage.svelte";
+import { cart, undoablePurchases } from "./storage.svelte";
 import { invalidateAll } from "$app/navigation";
 import { toast } from "svelte-sonner";
 
@@ -17,6 +17,9 @@ export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
 export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
 
 type svelteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+
+export const UNDO_PURCHASE_WINDOW_SECONDS = 60;
 
 /**
  * Prepends the backend base URL to a path.
@@ -50,6 +53,23 @@ export async function getUser(fetch: svelteFetch) {
 type TimeRange = {
     start?: number;
     end?: number;
+}
+
+export type TransactionSummary = {
+    id: number,
+    amount: number,
+    user_email: string | null, // null for anonymised (private) transactions
+    admin_issued: boolean,
+    datetime: number,
+}
+
+export type TransactionDetail = {
+    id: number,
+    amount: number,
+    user: undefined | any, 
+    datetime: number,
+    admin_issued: boolean,
+    items: any[]
 }
 
 export type TransactionQuery = {
@@ -96,10 +116,12 @@ export async function getTransactions(query?: TransactionQuery) {
     return await transactionResponse.json();
 }
 
-export async function undoTransaction(transactionID: number) {
-    let response = await backendPOST("/undo_transaction", { transaction_id: transactionID }, true);
+export async function undoPurchase(transactionID: number) {
+    const token = undoablePurchases.purchases[transactionID];
+    let response = await backendPOST("/undo_purchase", { transaction_id: transactionID, token }, true);
     if (response.ok) {
       invalidateAll();
+      delete undoablePurchases.purchases[transactionID];
       toast.success("Köp ångrat");
     } else {
       toast.error("Kunde inte ångra köp: " + await response.text());

@@ -1,10 +1,10 @@
 <script lang="ts">
   import Button from '$lib/components/ui/button/button.svelte';
-  import { cart } from "$lib/storage.svelte";
+  import { cart, undoablePurchases } from "$lib/storage.svelte";
   import type { PageProps } from './$types';
   import SadIcon from "@lucide/svelte/icons/frown";
     import CartProductDisplay from './CartProductDisplay.svelte';
-    import { backendPOST } from '$lib/utils';
+    import { backendPOST, undoPurchase } from '$lib/utils';
     import { toast } from 'svelte-sonner';
     import { goto, invalidateAll } from '$app/navigation';
 	let { data }: PageProps = $props();
@@ -22,10 +22,17 @@
     let response = await backendPOST("/buy_products", { products: cartArray }, true);
     if (response.ok) {
       const spent = total;
+      let purchase = await response.json();
+      undoablePurchases.purchases[purchase.transaction_id] = purchase.token;
       await goto("/");
       invalidateAll();
       cart.products = {};
-      toast.success(`Ditt köp på ${spent}kr har genomförts`)
+      toast.success(`Ditt köp på ${spent}kr har genomförts`, {
+        action: {
+          label: "Ångra",
+          onClick: () => undoPurchase(purchase.transaction_id)
+        }
+      });
     }
   }
 

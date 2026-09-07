@@ -4,7 +4,7 @@
   import Button from '$lib/components/ui/button/button.svelte';
   import ShoppingCartIcon from "@lucide/svelte/icons/shopping-basket";
   import { page } from '$app/state';
-  import { cart } from "$lib/storage.svelte";
+  import { cart, undoablePurchases } from "$lib/storage.svelte";
   import { onMount } from "svelte";
   import LogoButton from "$lib/components/LogoButton.svelte";
 
@@ -32,6 +32,11 @@
       cart.products = JSON.parse(localCart);
     }
 
+    let localUndoable = localStorage.getItem("undoablePurchases");
+    if (localUndoable) {
+      undoablePurchases.purchases = JSON.parse(localUndoable);
+    }
+
     const onScroll = () => {
       scrolled = window.scrollY > 120;
     };
@@ -43,6 +48,11 @@
   $effect(() => {
     let stringCart = JSON.stringify(cart.products);
     localStorage.setItem("cart", stringCart);
+  })
+
+  $effect(() => {
+    let stringUndoable = JSON.stringify(undoablePurchases.purchases);
+    localStorage.setItem("undoablePurchases", stringUndoable);
   })
 </script>
 

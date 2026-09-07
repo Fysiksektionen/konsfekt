@@ -3,9 +3,10 @@
   import FlagIcon from "@lucide/svelte/icons/flag";
   import Button from "$lib/components/ui/button/button.svelte";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
-    import { backendPOST, undoTransaction } from "$lib/utils";
+    import { backendPOST, undoPurchase } from "$lib/utils";
     import { toast } from "svelte-sonner";
     import { invalidateAll } from "$app/navigation";
+    import { undoablePurchases } from "$lib/storage.svelte";
 
   let { user, product, addedToCart = $bindable(0) } = $props();
 
@@ -22,12 +23,13 @@
   async function buyProduct() {
     let response = await backendPOST("/buy_single_product", { id: Number(product.id) }, true);
     if (response.ok) {
-      let transactionID = await response.json();
+      let purchase = await response.json();
       invalidateAll();
-      toast.success(product.name + " köpt.", user.private_transactions ? {} : {
+      undoablePurchases.purchases[purchase.transaction_id] = purchase.token;
+      toast.success(product.name + " köpt.", {
         action: {
           label: "Ångra",
-          onClick: () => undoTransaction(transactionID.transaction_id)
+          onClick: () => undoPurchase(purchase.transaction_id)
         }
       });
     } else if (response.status == 402) {

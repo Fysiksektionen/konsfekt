@@ -23,6 +23,7 @@ pub struct EnvironmentVariables {
     pub swish_number: String,
     pub use_swish_sandbox: bool,
     pub swish_api_url: String,
+    pub undo_purchase_secret: String, 
 }
 
 fn required_env(name: &str) -> String {
@@ -62,7 +63,8 @@ impl EnvironmentVariables {
             swish_api_url: match use_swish_sandbox {
                 true => String::from("https://staging.getswish.pub.tds.tieto.com/swish-cpcapi/api/v2/paymentrequests/"),
                 false => String::from("https://cpc.getswish.net/swish-cpcapi/api/v2/paymentrequests/"),
-            }
+            },
+            undo_purchase_secret: utils::gen_secure_random_str().expect("Could not generate secret for undoable purchases.")
         }
     }
 }

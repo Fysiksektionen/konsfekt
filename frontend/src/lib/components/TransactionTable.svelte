@@ -1,15 +1,12 @@
 <script lang="ts">
   import * as Table from "$lib/components/ui/table/index.js";
-    import { fetchJSON, getDateString, undoTransaction } from "$lib/utils";
+    import { fetchJSON, getDateString } from "$lib/utils";
     import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
-    import { onMount } from "svelte";
-    import { invalidateAll } from "$app/navigation";
-    import Button from "$lib/components/ui/button/button.svelte";
     import Badge from "$lib/components/ui/badge/badge.svelte";
 
   let { transactions, isAdminTable = false } = $props();
-  
+
   let currentTransaction = $state(null);
   let transactionViewOpen = $state(false);
 
@@ -17,9 +14,6 @@
     currentTransaction = await fetchJSON(fetch, "/api/get_detailed_transaction/" + transactionID);
     transactionViewOpen = true;
   }
- let currentTime = $state(Math.floor(Date.now()/1000));
-
- let timeSincePurchace = $derived(currentTime - currentTransaction?.datetime ?? 0);
 
  function transactionTypeLabel(transaction) {
    if (transaction.admin_issued) {
@@ -27,16 +21,6 @@
    }
    return transaction.amount > 0 ? 'Insättning' : "Köp"
  }
-
- onMount(() => {
-		const interval = setInterval(() => {
-			currentTime = Math.floor(Date.now()/1000);
-		}, 1000);
-
-		return () => {
-			clearInterval(interval);
-		};
-	});
 </script>
 
 <div class="rounded-md border">
@@ -99,21 +83,8 @@
             {/each}
           </div>
         {/if}
-        <span class="text-2xl font-mono font-semibold">{Math.abs(currentTransaction?.amount)}kr</span> 
+        <span class="text-2xl font-mono font-semibold">{Math.abs(currentTransaction?.amount)}kr</span>
       </Dialog.Description>
     </Dialog.Header>
-    {#if !isAdminTable}
-      {#key currentTime}
-        {#if timeSincePurchace < 60}
-          <Button onclick={() => {
-            undoTransaction(currentTransaction?.id)
-            transactionViewOpen = false;
-            invalidateAll();
-          }}>
-            Ångra köp ({60 - timeSincePurchace})
-          </Button>
-        {/if}
-      {/key}
-    {/if}
   </Dialog.Content>
 </Dialog.Root>
