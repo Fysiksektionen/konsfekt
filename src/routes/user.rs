@@ -105,7 +105,7 @@ pub async fn update_user(current_user: CurrentUser, state: Data<AppState>, param
 
     let mut user = crud::get_user(&state.db, Some(params.id), None).await?;
     if user.role == Role::Admin && user_admin.role != Role::Admin {
-        return_err!(actix_web::error::ErrorForbidden("Cannot change an admins information"));
+        return_err!(actix_web::error::ErrorForbidden("Cannot change an admin's information"));
     }
 
     if let Some(role) = params.role { user.role = role };

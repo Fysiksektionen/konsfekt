@@ -1,16 +1,20 @@
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, cookie::Cookie, get, web::{self, Data}};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, cookie::Cookie, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::{AppState, auth::{self, Session}, database::crud, error::{ApiResult, ClientError}, return_err, routes::{CurrentUser, user_from_cookie}, utils};
+use crate::{AppState, auth::{self, Session}, database::crud::{self, remove_email_switch}, error::{ApiResult, AppError, ClientError, GenericError}, return_err, routes::{CurrentUser, user_from_cookie}, utils};
 
 //
 //              Google OAuth
 //
 
+pub const LOGIN_STATE_COOKIE: &str = "login-state";
+
+/// Sent to /api/auth/google/callback
 #[derive(Deserialize)]
-struct AuthRequest {
+struct GoogleCallbackQuery {
     code: String,
+    state: Option<String> // Email switch token
 }
 
 #[derive(Deserialize, Debug)]
@@ -25,43 +29,80 @@ struct GoogleUserInfo {
     id: String, // Unique google_id for each user (doesn't change)
 }
 
-#[get("/api/auth/google")]
-pub async fn google_login(state: Data<AppState>) -> HttpResponse {
-    let auth_url = format!(
+impl GoogleUserInfo {
+    pub async fn get_from_google(state: Data<AppState>, google_code: &str) -> Result<Self, AppError> {
+        let resp: GoogleTokenResponse = state.client
+            .post("https://oauth2.googleapis.com/token")
+            .form(&[
+                ("client_id", state.env.google_client_id.as_str()),
+                ("client_secret", state.env.google_client_secret.as_str()),
+                ("code", google_code),
+                ("grant_type", "authorization_code"),
+                ("redirect_uri", format!("{}/api/auth/google/callback", state.env.site_domain).as_str()),
+            ])
+            .send().await.map_err(ClientError::from)?
+            .json().await.map_err(ClientError::from)?;
+
+        let user_info: GoogleUserInfo = state.client
+            .get("https://www.googleapis.com/oauth2/v2/userinfo")
+            .bearer_auth(&resp.access_token)
+            .send().await.map_err(ClientError::from)?
+            .json().await.map_err(ClientError::from)?;
+
+        return Ok(user_info);
+    }
+
+}
+
+fn get_google_auth_url(state: &Data<AppState>) -> String {
+    format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
         client_id={}&redirect_uri={}/api/auth/google/callback&response_type=code&\
         scope=openid%20email&access_type=online",
         state.env.google_client_id, state.env.site_domain
-    );
+    )
+}
 
-    HttpResponse::Found()
+#[get("/api/auth/google")]
+pub async fn google_login(state: Data<AppState>) -> ApiResult<HttpResponse> {
+    let login_state = utils::gen_secure_random_str().ok_or(GenericError::new("Could not generate login state"))?;
+    
+    let mut auth_url = get_google_auth_url(&state);
+    auth_url.push_str("&state=");
+    auth_url.push_str(&login_state);
+
+    let cookie = Cookie::build(LOGIN_STATE_COOKIE, login_state)
+        .path("/api/auth")
+        .http_only(true)
+        .secure(false) // TODO Switch to HTTPS
+        .same_site(actix_web::cookie::SameSite::Lax)
+        .max_age(Duration::seconds(60)).finish();
+
+    Ok(HttpResponse::Found()
         .append_header(("Location", auth_url))
-        .finish()
+        .cookie(cookie)
+        .finish())
 }
 
 #[get("/api/auth/google/callback")]
-pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<AuthRequest>) -> ApiResult<HttpResponse> {
-    let resp: GoogleTokenResponse = state.client
-        .post("https://oauth2.googleapis.com/token")
-        .form(&[
-            ("client_id", state.env.google_client_id.as_str()),
-            ("client_secret", state.env.google_client_secret.as_str()),
-            ("code", query.code.as_str()),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", format!("{}/api/auth/google/callback", state.env.site_domain).as_str()),
-        ])
-        .send().await.map_err(ClientError::from)?
-        .json().await.map_err(ClientError::from)?;
-
-    let user_info: GoogleUserInfo = state.client
-        .get("https://www.googleapis.com/oauth2/v2/userinfo")
-        .bearer_auth(&resp.access_token)
-        .send().await.map_err(ClientError::from)?
-        .json().await.map_err(ClientError::from)?;
-
-    if let Ok(logged_in_user) = user_from_cookie(&state.db, &req).await {
-        if crud::email_switch_exists(&state.db, logged_in_user.id).await? {
-            crud::finalize_email_switch(&state.db, logged_in_user.id, &user_info.email, &user_info.id).await?;
+pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<GoogleCallbackQuery>) -> ApiResult<HttpResponse> {
+    let user_info = GoogleUserInfo::get_from_google(state.clone(), &query.code).await?;
+    
+    let Some(auth_state) = &query.state else {
+        return_err!(actix_web::error::ErrorUnauthorized("OAuth state not found"));
+    };
+    if let Some(email_switch) = crud::get_email_switch(&state.db, &auth_state).await? {
+        match (email_switch.expired, email_switch.completed) {
+            (true, false) => { crud::remove_email_switch(&state.db, &auth_state).await?; },
+            (false, false) => { crud::finalize_email_switch(&state.db, email_switch, &user_info.email, &user_info.id).await?; },
+            _ => { }
+        }
+    } else {
+        let Some(cookie) = req.cookie(LOGIN_STATE_COOKIE).map(|c| c.value().to_string()) else {
+            return_err!(actix_web::error::ErrorUnauthorized("Login state cookie not found"));
+        };
+        if cookie != *auth_state {
+            return_err!(actix_web::error::ErrorUnauthorized("Login state's does not match"));
         }
     }
 
@@ -82,8 +123,8 @@ async fn create_session_response(state: Data<AppState>, user_id: u32) -> ApiResu
         .path("/")
         .http_only(true)
         .secure(false) // TODO Switch to HTTPS
-        .same_site(actix_web::cookie::SameSite::Lax)
-        .max_age(Duration::weeks(4)).finish();
+        .same_site(actix_web::cookie::SameSite::Strict) // TODO Switch to Strict
+        .max_age(Duration::weeks(4)).finish(); // Lower?
     Ok(HttpResponse::Found()
         .append_header(("Location", utils::get_path(&state, "/")))
         .cookie(cookie)
@@ -111,13 +152,18 @@ pub async fn logout(state: Data<AppState>, req: HttpRequest) -> ApiResult<HttpRe
     )
 }
 
-#[get("/api/auth/change_email")]
+#[post("/api/auth/change_email")]
 pub async fn change_email(state: Data<AppState>, current_user: CurrentUser) -> ApiResult<HttpResponse> {
-    // let user = user_from_cookie(&state.db, &req).await?;
     let user = current_user.into_row();
-    crud::initiate_email_switch(&state.db, user.id).await?;
+    let email_switch_token = utils::gen_secure_random_str().ok_or(GenericError::new("Could not generate email switch token"))?;
+
+    let mut auth_url = get_google_auth_url(&state);
+    auth_url.push_str("&state=");
+    auth_url.push_str(&email_switch_token);
+
+    crud::initiate_email_switch(&state.db, user.id, &email_switch_token).await?;
 
     Ok(HttpResponse::Found()
-        .append_header(("Location", utils::get_path(&state, "/api/auth/google")))
+        .append_header(("Location", auth_url))
         .finish())
 }

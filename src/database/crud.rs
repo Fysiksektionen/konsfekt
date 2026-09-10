@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Result, SqlitePool};
+use sqlx::{QueryBuilder, Result, SqlitePool, pool};
 use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{SwishPaymentRequestRow, TransactionItemRow, TransactionRow};
@@ -118,50 +118,72 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
     Ok(())
 }
 
-pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
+#[derive(sqlx::FromRow)]
+pub struct EmailSwitch {
+    pub user_id: u32,
+    pub token: String,
+    pub expired: bool,
+    pub completed: bool,
+}
+
+pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32, token: &str) -> Result<(), DatabaseError> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
     sqlx::query(
         r#"
-        INSERT INTO EmailSwitch (user, created_at)
-        VALUES (?, ?)
+        INSERT INTO EmailSwitch (user, token, created_at)
+        VALUES (?, ?, ?)
         "#
-    ).bind(user_id).bind(now).execute(pool).await?;
+    ).bind(user_id).bind(token).bind(now).execute(pool).await?;
 
     Ok(())
 }
 
-pub async fn authorize_email_switch(pool: &SqlitePool, user_id: u32, access_token: &str) -> Result<(), DatabaseError> {
-    sqlx::query(
+pub async fn get_email_switch(pool: &SqlitePool, token: &str) -> Result<Option<EmailSwitch>, DatabaseError> {
+    let email_switch: Option<EmailSwitch> = sqlx::query_as(
         r#"
-        UPDATE EmailSwitch SET access_token = ?
-        WHERE user = ?
-        "#
-    ).bind(access_token).bind(user_id).execute(pool).await?;
-
-    Ok(())
+        SELECT 
+            user AS user_id, 
+            token, 
+            created_at < strftime('%s', 'now') - 60 AS expired,
+            completed
+        FROM EmailSwitch 
+        WHERE token = ?
+        "#).bind(token).fetch_optional(pool).await?;
+    Ok(email_switch)
 }
 
-pub async fn email_switch_exists(pool: &SqlitePool, user_id: u32) -> Result<bool, DatabaseError> {
-    let exists: bool = sqlx::query_scalar(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM EmailSwitch
-            WHERE user = ? AND created_at > strftime('%s', 'now') - 60
-        )
-        "#
-    ).bind(user_id).fetch_one(pool).await?;
-
-    return Ok(exists);
-}
-
-pub async fn invalidate_email_switch(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
+pub async fn remove_email_switch(pool: &SqlitePool, token: &str) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
         DELETE FROM EmailSwitch
-        WHERE user = ?
+        WHERE token = ?
         "#
-    ).bind(user_id).execute(pool).await?;
+    ).bind(token).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn finalize_email_switch(pool: &SqlitePool, email_switch: EmailSwitch, new_email: &str, google_id: &str) -> Result<(), DatabaseError> {
+    let mut tx = pool.begin().await?;
+
+    // If email switch is expired we still want to keep that the user did the switch
+    sqlx::query(
+        r#"
+        UPDATE User SET 
+            email = ?, 
+            google_id = ?
+        WHERE id = ?
+        "#).bind(new_email).bind(google_id).bind(email_switch.user_id).execute(&mut *tx).await?;
+
+    sqlx::query(
+        r#"
+        UPDATE EmailSwitch SET
+            completed = 1
+        WHERE token = ?
+        "#
+    ).bind(email_switch.token).execute(&mut *tx).await?;
+
+    tx.commit().await?;
 
     Ok(())
 }
@@ -174,28 +196,6 @@ pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<Us
         WHERE role = ?
         "#).bind(role).fetch_all(pool).await?;
     Ok(users)
-}
-
-pub async fn finalize_email_switch(pool: &SqlitePool, user_id: u32, new_email: &str, google_id: &str) -> Result<(), DatabaseError> {
-    let mut tx = pool.begin().await?;
-    sqlx::query(
-        r#"
-        UPDATE User SET 
-            email = ?, 
-            google_id = ?
-        WHERE id = ?
-        "#).bind(new_email).bind(google_id).bind(user_id).execute(&mut *tx).await?;
-
-    sqlx::query(
-        r#"
-        DELETE FROM EmailSwitch
-        WHERE user = ?
-        "#
-    ).bind(user_id).execute(&mut *tx).await?;
-
-    tx.commit().await?;
-
-    Ok(())
 }
 
 //
