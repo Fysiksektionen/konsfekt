@@ -177,7 +177,7 @@ pub mod swish {
                 crud::update_user_balance(&state.db, user.id, user.balance + payment_request.amount).await?;
 
                 let transaction = PendingTransaction {
-                    user: Some(user.id),
+                    user: if user.private_transactions { None } else { Some(user.id) },
                     products: Vec::new(),
                     amount: payment_request.amount,
                     admin_issued: false

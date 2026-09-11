@@ -7,7 +7,7 @@ use time::OffsetDateTime;
 
 type HmacSha256 = Hmac<Sha256>;
 
-use crate::{AppState, Role, database::{self, crud, model::UserRow}, error::{ApiResult, AppError, GenericError}, model::{PendingTransaction, Product, ProductParams, TransactionDetail}, return_err, routes::CurrentUser, utils};
+use crate::{AppState, Role, database::{self, crud, model::UserRow}, error::{ApiResult, AppError, GenericError}, model::{PendingTransaction, Product, ProductParams}, return_err, routes::CurrentUser, utils};
 
 fn product_assert_permission(product: &Product, user: &UserRow) -> ApiResult<()> {
     if !product.flags.modifiable && user.role != Role::Admin {

@@ -176,10 +176,10 @@
     <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Köp- och insättningshistorik</h3> 
     <Item.Root variant="outline" class="max-w-[500px]">
       <Item.Content>
-        <Item.Title><a href="/om#anonyma-köp">Anonyma köp</a></Item.Title>
+        <Item.Title><a href="/om#anonyma-transaktioner">Anonyma transaktioner</a></Item.Title>
         <Item.Description>
-          Vill du att dina köp <u>inte</u> ska kopplas till ditt namn? 
-          <a href="/om#anonyma-köp">Läs mer </a>
+          Vill du att dina köp och insättningar <u>inte</u> ska kopplas till ditt namn? 
+          <a href="/om#anonyma-transaktioner">Läs mer </a>
         </Item.Description>
       </Item.Content>
       <Item.Actions>

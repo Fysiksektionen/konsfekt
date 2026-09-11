@@ -52,7 +52,7 @@
 			</div>
 
 			<div>
-				<h2 id="anonyma-köp" class="text-xl font-semibold">Vilken information sparas om mig?</h2>
+				<h2 id="anonyma-transaktioner" class="text-xl font-semibold">Vilken information sparas om mig?</h2>
 				<p class="mt-2 text-muted-foreground">
                     Normalt kopplas varje köp till ditt konto, så att det syns i din
                     transaktionshistorik att du gjort köpet.

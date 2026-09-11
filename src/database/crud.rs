@@ -488,6 +488,7 @@ pub async fn unlink_transactions(pool: &SqlitePool, user_id: u32) -> Result<(), 
         UPDATE StoreTransaction
         SET user = NULL
         WHERE user = ?
+        AND admin_issued == 0
         "#).bind(user_id).execute(pool).await?;
     sqlx::query(
         r#"

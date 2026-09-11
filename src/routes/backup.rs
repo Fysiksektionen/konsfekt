@@ -1,4 +1,4 @@
-use actix_web::{post, get, web::Data};
+use actix_web::{get, web::Data};
 
 use crate::{AppState, Role, database, error::ApiResult, routes::CurrentUser};
 

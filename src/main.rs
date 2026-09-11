@@ -1,4 +1,4 @@
-use std::{format, time::Duration};
+use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{http, middleware::DefaultHeaders, web::scope};
