@@ -5,7 +5,7 @@
   import * as Item from "$lib/components/ui/item/index.js";
   import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
   import Footer from '$lib/components/Footer.svelte';
-    import { backendPOST, UNDO_PURCHASE_WINDOW_SECONDS, undoPurchase, type TransactionSummary } from "$lib/utils";
+    import { backendPOST, UNDO_PURCHASE_WINDOW_SECONDS, undoPurchase, getTransactions, nextTransactionCursor, transactionQueryFromUserId, type TransactionSummary } from "$lib/utils";
     import { Switch } from '$lib/components/ui/switch';
     import { invalidateAll } from '$app/navigation';
     import TransactionTable from '$lib/components/TransactionTable.svelte';
@@ -19,8 +19,40 @@
 	let { data }: PageProps = $props();
 
   let undoablePurchasesDetail = $state<TransactionDetail[]>([]);
-  let transactions = $state<TransactionSummary[]>(data.transactions);
   let currentTime = $state(Math.floor(Date.now()/1000));
+
+  const transactionQuery = transactionQueryFromUserId(data.user.id);
+
+  // Fetched pages, cached so going back doesn't need a refetch.
+  let pages = $state<TransactionSummary[][]>([data.transactions]);
+  let pageIndex = $state(0);
+
+  let hasPreviousPage = $derived(pageIndex > 0);
+  let hasNextPage = $derived(
+    pageIndex + 1 < pages.length || (pages[pageIndex]?.length ?? 0) === transactionQuery.limit
+  );
+
+  async function nextPage() {
+    if (pageIndex + 1 < pages.length) {
+      pageIndex++;
+      return;
+    }
+    transactionQuery.cursor = nextTransactionCursor(pages[pageIndex]);
+    const next = await getTransactions(transactionQuery);
+    pages = [...pages, next];
+    pageIndex++;
+  }
+
+  function previousPage() {
+    if (pageIndex > 0) {
+      pageIndex--;
+    }
+  }
+
+  // Transactions of the current page, minus any still-undoable purchases shown separately above.
+  let transactions = $derived(
+    (pages[pageIndex] ?? []).filter(tx => !undoablePurchasesDetail.some(u => u.id === tx.id))
+  );
 
   onMount(() => {
    const interval = setInterval(() => {
@@ -54,9 +86,6 @@
           keep.map((id) => [id, undoablePurchases.purchases[id]])
         );
       }
-      // Don't want to display transactions in transaction table too
-
-      transactions = transactions.filter(tx => !keep.includes(tx.id))
     });
   });
 
@@ -194,7 +223,14 @@
     {/key}
     </div>
     {/if}
-    <TransactionTable transactions={transactions} isAdminTable={false}/>
+    <TransactionTable
+      transactions={transactions}
+      isAdminTable={false}
+      hasPreviousPage={hasPreviousPage}
+      hasNextPage={hasNextPage}
+      onPreviousPage={previousPage}
+      onNextPage={nextPage}
+    />
     {#if data.transactions.length > 0}
       <Button href="/profil/koppla-bort-transaktioner" variant="link" class="text-foreground">
         Dissociera transaktioner från mitt konto

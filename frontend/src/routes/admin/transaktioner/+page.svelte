@@ -2,7 +2,7 @@
     import TransactionTable from "$lib/components/TransactionTable.svelte";
     import Input from "$lib/components/ui/input/input.svelte";
     import Switch from "$lib/components/ui/switch/switch.svelte";
-    import { defaultTransactionQuery, getTransactions, type TransactionQuery } from "$lib/utils";
+    import { defaultTransactionQuery, getTransactions, nextTransactionCursor, type TransactionQuery, type TransactionSummary } from "$lib/utils";
   import type { PageProps } from "./$types";
   import * as Select from "$lib/components/ui/select/index.js";
     import { onMount } from "svelte";
@@ -10,17 +10,45 @@
   let { data }: PageProps = $props();
 
   let transactionQuery = $state(defaultTransactionQuery());
-  
+
   let timeOfSearchInputChange = $state(Date.now());
   let hasSearched = $state(true);
-  let transactions = $state(data.transactions);
+
+  // Fetched pages, cached so going back doesn't need a refetch.
+  let pages = $state<TransactionSummary[][]>([data.transactions]);
+  let pageIndex = $state(0);
+
+  let transactions = $derived(pages[pageIndex] ?? []);
+  let hasPreviousPage = $derived(pageIndex > 0);
+  let hasNextPage = $derived(
+    pageIndex + 1 < pages.length || (pages[pageIndex]?.length ?? 0) === transactionQuery.limit
+  );
 
   async function search() {
     hasSearched = true;
     if (transactionQuery.search_term == "") {
       transactionQuery.search_term = undefined;
     }
-    transactions = await getTransactions(transactionQuery);
+    transactionQuery.cursor = undefined;
+    pages = [await getTransactions(transactionQuery)];
+    pageIndex = 0;
+  }
+
+  async function nextPage() {
+    if (pageIndex + 1 < pages.length) {
+      pageIndex++;
+      return;
+    }
+    transactionQuery.cursor = nextTransactionCursor(pages[pageIndex]);
+    const next = await getTransactions(transactionQuery);
+    pages = [...pages, next];
+    pageIndex++;
+  }
+
+  function previousPage() {
+    if (pageIndex > 0) {
+      pageIndex--;
+    }
   }
 
   onMount(() => {
@@ -129,6 +157,13 @@
     </div>
   </div>
 
-  <TransactionTable transactions={transactions} isAdminTable={true}/>
+  <TransactionTable
+    transactions={transactions}
+    isAdminTable={true}
+    hasPreviousPage={hasPreviousPage}
+    hasNextPage={hasNextPage}
+    onPreviousPage={previousPage}
+    onNextPage={nextPage}
+  />
 </div>
 

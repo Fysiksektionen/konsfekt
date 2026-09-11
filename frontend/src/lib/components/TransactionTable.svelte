@@ -4,8 +4,16 @@
     import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
     import Badge from "$lib/components/ui/badge/badge.svelte";
+    import Button from "$lib/components/ui/button/button.svelte";
 
-  let { transactions, isAdminTable = false } = $props();
+  let {
+    transactions,
+    isAdminTable = false,
+    hasPreviousPage = false,
+    hasNextPage = false,
+    onPreviousPage = undefined,
+    onNextPage = undefined,
+  } = $props();
 
   let currentTransaction = $state(null);
   let transactionViewOpen = $state(false);
@@ -65,6 +73,27 @@
     </Table.Body>
   </Table.Root>
 </div>
+
+{#if onPreviousPage || onNextPage}
+  <div class="flex justify-end items-center gap-2 mt-3">
+    <Button
+      variant="outline"
+      size="sm"
+      onclick={onPreviousPage}
+      disabled={!hasPreviousPage}
+    >
+      Föregående
+    </Button>
+    <Button
+      variant="outline"
+      size="sm"
+      onclick={onNextPage}
+      disabled={!hasNextPage}
+    >
+      Nästa
+    </Button>
+  </div>
+{/if}
 
 <Dialog.Root bind:open={transactionViewOpen}>
   <Dialog.Content>

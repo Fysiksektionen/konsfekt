@@ -72,13 +72,18 @@ export type TransactionDetail = {
     items: any[]
 }
 
+export type TransactionCursor = {
+    datetime: number;
+    id: number;
+};
+
 export type TransactionQuery = {
     user_ids: number[];
     product_ids: number[];
     time_range?: TimeRange;
     search_term?: string;
     admin_issued?: boolean;
-    cursor?: number;
+    cursor?: TransactionCursor;
     limit: number;
     descending: boolean;
 };
@@ -114,6 +119,12 @@ export async function getTransactions(query?: TransactionQuery) {
         throw error(transactionResponse.status, transactionResponse.statusText);
     }
     return await transactionResponse.json();
+}
+
+// Cursor pointing just after the last transaction of a page, used to fetch the next page.
+export function nextTransactionCursor(transactions: TransactionSummary[]): TransactionCursor | undefined {
+    const last = transactions.at(-1);
+    return last == null ? undefined : { datetime: last.datetime, id: last.id };
 }
 
 export async function undoPurchase(transactionID: number) {
