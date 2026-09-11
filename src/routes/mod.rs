@@ -6,6 +6,7 @@ pub mod stats;
 pub mod debug;
 pub mod payment;
 pub mod transactions;
+pub mod backup;
 
 use std::pin::Pin;
 

@@ -1,10 +1,12 @@
+use std::{format, time::Duration};
+
 use actix_cors::Cors;
 use actix_web::{http, middleware::DefaultHeaders, web::scope};
 use clap::Parser;
 use konsfekt::{database, routes, AppState, EnvironmentVariables, args};
 
 use actix_web::{middleware, web::Data, App, HttpServer};
-use sqlx::Sqlite;
+use sqlx::{Sqlite, SqlitePool};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -25,11 +27,48 @@ async fn main() -> std::io::Result<()> {
         log::info!("Frontend needs to be served separately")
     }
 
+    if env.backups_enabled {
+        log::info!("Creating backup...");
+        let (db, uploads) = database::backup::create_backup(&pool)
+            .await
+            .expect("Could not create backup");
+        log::info!(
+            "Successfully created database backup \"{}\" and uploads backup \"{}\"",
+            db, uploads
+        );
+
+        start_backup_interval(&env, pool.clone());
+    }
+
     let env_clone = env.clone();
     HttpServer::new(move || create_http(env_clone.clone(), pool.clone()))
         .bind(("0.0.0.0", 8080))?
         .run()
         .await
+}
+
+fn start_backup_interval(env: &EnvironmentVariables, pool: SqlitePool) {
+    let sleep_time: u64 = env.backup_interval.second() as u64
+                        + env.backup_interval.minute() as u64   * 60 
+                        + env.backup_interval.hour()   as u64   * 60 * 60;
+
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(sleep_time)).await;    
+             
+            match database::backup::create_backup(&pool).await {
+                Ok((db, uploads)) => log::info!(
+                    "Successfully created database backup \"{}\" and uploads backup \"{}\"",
+                    db,
+                    uploads
+                ),
+                Err(_) => log::error!("Failed to create backup.")
+            };
+        }
+
+
+
+    });
 }
 
 fn create_logger(env: &EnvironmentVariables) {
@@ -114,6 +153,9 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
         .service(routes::stats::purchases)
         .service(routes::stats::customers)
         .service(routes::stats::deposits)
+
+        // Backup
+        .service(routes::backup::create_backup)
 
         // Uploads
         .service(scope("/uploads")

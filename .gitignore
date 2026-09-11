@@ -2,6 +2,7 @@
 /db
 /certificates
 .env
+/backup
 
 node_modules
 

@@ -1,5 +1,6 @@
 pub mod crud;
 pub mod model;
+pub mod backup;
 
 use std::{fs, path::Path, str::FromStr};
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};

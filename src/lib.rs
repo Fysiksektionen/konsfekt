@@ -11,6 +11,7 @@ use std::{env, fs};
 use reqwest::{Certificate, Client, Identity};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
+use time::macros::format_description;
 
 #[derive(Clone)]
 pub struct EnvironmentVariables {
@@ -24,6 +25,8 @@ pub struct EnvironmentVariables {
     pub use_swish_sandbox: bool,
     pub swish_api_url: String,
     pub undo_purchase_secret: String, 
+    pub backups_enabled: bool,
+    pub backup_interval: time::Time,
 }
 
 fn required_env(name: &str) -> String {
@@ -64,7 +67,15 @@ impl EnvironmentVariables {
                 true => String::from("https://staging.getswish.pub.tds.tieto.com/swish-cpcapi/api/v2/paymentrequests/"),
                 false => String::from("https://cpc.getswish.net/swish-cpcapi/api/v2/paymentrequests/"),
             },
-            undo_purchase_secret: utils::gen_secure_random_str().expect("Could not generate secret for undoable purchases.")
+            undo_purchase_secret: utils::gen_secure_random_str().expect("Could not generate secret for undoable purchases."),
+            backups_enabled: match required_env("ENABLE_BACKUPS").as_str() {
+                "true" | "True" | "t"  => true,
+                _ => false
+            },
+            backup_interval: time::Time::parse(
+                required_env("BACKUP_INTERVAL").as_str(), 
+                &format_description!("[hour]:[minute]:[second]")
+            ).expect("Unable to parse BACKUP_INTERVAL timestamp, use format \"hh:mm:ss\""),
         }
     }
 }
