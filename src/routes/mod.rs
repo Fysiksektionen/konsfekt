@@ -59,7 +59,7 @@ impl FromRequest for CurrentUser {
             .app_data::<web::Data<AppState>>()
             .cloned();
         
-        let cookie = req.cookie(auth::AUTH_COOKIE).clone();
+        let cookie = req.cookie(auth::SESSION_COOKIE).clone();
 
         Box::pin(async move {
             let state = state.ok_or_else(|| {
@@ -87,7 +87,7 @@ impl FromRequest for CurrentUser {
 //
 
 pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
-    let user = auth::get_user_from_cookie(pool, req.cookie(auth::AUTH_COOKIE)).await?;
+    let user = auth::get_user_from_cookie(pool, req.cookie(auth::SESSION_COOKIE)).await?;
 
     Ok(user)
 }
@@ -116,7 +116,7 @@ pub async fn session_middleware(
         return next.call(req).await;
     }
     
-    match auth::parse_auth_cookie(req.cookie(auth::AUTH_COOKIE)) {
+    match auth::parse_auth_cookie(req.cookie(auth::SESSION_COOKIE)) {
         // Cookie not found
         None => {
             if path.starts_with("/api/") {
@@ -139,7 +139,7 @@ pub async fn session_middleware(
                 }
                 // Validation Bad
                 Ok(None) => {
-                    match req.cookie(auth::AUTH_COOKIE) {
+                    match req.cookie(auth::SESSION_COOKIE) {
                         Some(mut cookie) => cookie.make_removal(),
                         None => {},
                     }

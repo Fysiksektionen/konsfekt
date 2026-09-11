@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Result, SqlitePool, pool};
+use sqlx::{QueryBuilder, Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
 use crate::database::model::{SwishPaymentRequestRow, TransactionItemRow, TransactionRow};
@@ -95,6 +95,16 @@ pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<(), Database
     Ok(())
 }
 
+pub async fn invalidate_all_user_sessions(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
+    sqlx::query(
+        r#"
+        DELETE FROM Session
+        WHERE user = ?
+        "#
+    ).bind(user_id).execute(pool).await?;
+    Ok(())
+}
+
 pub async fn update_user_name(pool: &SqlitePool, user_id: u32, new_name: &str) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -163,7 +173,7 @@ pub async fn remove_email_switch(pool: &SqlitePool, token: &str) -> Result<(), D
     Ok(())
 }
 
-pub async fn finalize_email_switch(pool: &SqlitePool, email_switch: EmailSwitch, new_email: &str, google_id: &str) -> Result<(), DatabaseError> {
+pub async fn finalize_email_switch(pool: &SqlitePool, email_switch: &EmailSwitch, new_email: &str, google_id: &str) -> Result<(), DatabaseError> {
     let mut tx = pool.begin().await?;
 
     // If email switch is expired we still want to keep that the user did the switch
@@ -181,7 +191,7 @@ pub async fn finalize_email_switch(pool: &SqlitePool, email_switch: EmailSwitch,
             completed = 1
         WHERE token = ?
         "#
-    ).bind(email_switch.token).execute(&mut *tx).await?;
+    ).bind(email_switch.token.clone()).execute(&mut *tx).await?;
 
     tx.commit().await?;
 
@@ -318,14 +328,31 @@ pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransacti
     Ok(id)
 }
 
-pub async fn delete_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<(), DatabaseError> {
-    sqlx::query(
+pub async fn undo_purchase(pool: &SqlitePool, transaction_id: u32, user_id: u32, amount: f32) -> Result<(), DatabaseError> {
+    let mut tx = pool.begin().await?;
+
+    let result = sqlx::query(
         r#"
         DELETE FROM StoreTransaction 
         WHERE id = ?
         "#).bind(transaction_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    if result.rows_affected() != 1 {
+        return Err(sqlx::Error::RowNotFound.into());
+    }
+
+    sqlx::query(
+        r#"
+        UPDATE User SET balance = balance + abs(?) 
+        WHERE id = ?
+        "#).bind(amount).bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
     Ok(())
 }
 

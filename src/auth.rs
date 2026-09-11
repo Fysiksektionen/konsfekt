@@ -6,7 +6,7 @@ use hex;
 
 use crate::{database::{crud, model}, error::{AppError, AuthError, DatabaseError}, utils};
 
-pub const AUTH_COOKIE: &str = "session-token";
+pub const SESSION_COOKIE: &str = "session-token";
 
 #[derive(sqlx::FromRow, serde::Serialize, Clone)]
 pub struct Session {
@@ -30,7 +30,7 @@ pub enum EmailSwitchState {
 pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     if let Some(cookie) = cookie {
         let session_token = cookie.to_string();
-        if let Some(token) = session_token.strip_prefix(&(AUTH_COOKIE.to_string() + "=")) {
+        if let Some(token) = session_token.strip_prefix(&(SESSION_COOKIE.to_string() + "=")) {
             let (id, secret) = match token.splitn(2, '.').collect::<Vec<_>>().as_slice() {
                 [id, secret] => (id.to_string(), secret.to_string()),
                 _ => return None

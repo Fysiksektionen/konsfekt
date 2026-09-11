@@ -133,7 +133,7 @@ pub struct TransactionDetail {
     pub user: Option<UserResponse>, // None if user has private_transactions
     pub datetime: i64,
     pub admin_issued: bool,
-    items: Vec<TransactionItem>
+    pub items: Vec<TransactionItem>
 }
 
 #[derive(serde::Serialize, sqlx::FromRow)]

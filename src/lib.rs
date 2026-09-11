@@ -18,6 +18,7 @@ pub struct EnvironmentVariables {
     pub is_debug: bool,
     pub static_frontend: bool,
     pub frontend_url: String,
+    pub is_running_https: bool,
     pub site_domain: String,
     pub google_client_id: String,
     pub google_client_secret: String,
@@ -47,6 +48,7 @@ impl EnvironmentVariables {
             _ => panic!("SWISH_ENVIRONMENT can only take values 'sandbox' and 'prod'")
         };
 
+        let site_domain = required_env("SITE_DOMAIN");
         EnvironmentVariables {
             is_debug,
             static_frontend,
@@ -55,9 +57,10 @@ impl EnvironmentVariables {
                 true => String::from("/"),
                 false => String::from("http://127.0.0.1:5173"),
             },
+            is_running_https: site_domain.starts_with("https"),
             site_domain: match args.run_locally {
                 true => String::from("http://127.0.0.1:8080"),
-                false => required_env("SITE_DOMAIN"),
+                false => site_domain,
             },
             google_client_id: required_env("GOOGLE_CLIENT_ID"),
             google_client_secret: required_env("GOOGLE_CLIENT_SECRET"),

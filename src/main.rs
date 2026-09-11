@@ -103,6 +103,9 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
         .allowed_origin("tauri://localhost")
         .allowed_origin("http://tauri.localhost");
     let mut app = App::new()
+        .wrap(DefaultHeaders::new()
+            .add(("X-Frame-Options", "DENY"))
+            .add(("X-Content-Type-Options", "nosniff")))
         .wrap(middleware::from_fn(routes::session_middleware))
         .app_data(Data::new(AppState::from(pool.clone(), env.clone())))
         .app_data(actix_web::web::JsonConfig::default().error_handler(|err, req| {
