@@ -94,16 +94,6 @@ $ ssh -R konsfekt:80:0.0.0.0:8080 serveo.net
 Forwarding HTTP traffic from https://konsfekt.serveousercontent.com
 ```
 
-### Tauri (Mobile App) !MAY BUILD NATIVE APPS!
-This project uses [Tauri](https://v2.tauri.app) to serve the web page as a mobile app. 
-To get started first ensure you have all the [prerequisites](https://v2.tauri.app/start/prerequisites/) setup.
-
-To run the app as a dev server use `npx tauri dev`.
-
-Before building the app you need to create the file `.env.tauri` inside the `frontend` directory. Set the variable `VITE_API_URL` to the same value as `SITE_DOMAIN` in `.env`.
-
-Build the app with `npx tauri build`
-
 ## Docker
 Dependencies:
 - docker (docker compose)
@@ -141,7 +131,6 @@ this repo's `template.env` for reference).
 1. Create `.env` from `template.env` and set:
    - `SITE_DOMAIN` public URL the webapp is served at (used for OAuth redirects and cookies)
    - `DATABASE_DIR` host path to store the database and uploaded images
-   - `PERMISSION_TABLE_PATH` host path to `permission_table.json`
    - `CERTIFICATES_DIR` host path to the Swish certificates (see [Setup Swish](#setup-swish))
    - `SWISH_NUMBER` the merchant Swish number
    - `SWISH_ENVIRONMENT` (`prod` or `sandbox`)
