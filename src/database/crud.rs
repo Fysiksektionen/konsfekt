@@ -1,3 +1,6 @@
+//! Raw SQL queries against the SQLite database, grouped by domain (User, Shop,
+//! Payment). Callers are typically [`crate::routes`] handlers.
+
 use sqlx::{QueryBuilder, Result, SqlitePool};
 use time::{OffsetDateTime, UtcDateTime};
 
@@ -14,6 +17,9 @@ use super::model::ProductRow;
 //          User
 //
 
+/// Inserts a new user with zero balance, not on the leaderboard, and public
+/// transactions. The very first user ever created is given [`Role::Admin`];
+/// everyone after that gets [`Role::User`].
 pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, google_id: &str) -> Result<UserRow, DatabaseError> {
     let user_table_has_rows: bool = sqlx::query_scalar(r#"
         SELECT EXISTS(SELECT 1 FROM User)"#).fetch_one(pool).await?;
@@ -39,6 +45,11 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
     })
 }
 
+/// Fetches a user by id or Google id (whichever is `Some`; if both are given,
+/// either match succeeds since the query uses `OR`).
+///
+/// # Errors
+/// Returns [`sqlx::Error::RowNotFound`] (wrapped) if no user matches.
 pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<UserRow, DatabaseError> {
     let user: UserRow = sqlx::query_as(
         r#"
@@ -49,6 +60,7 @@ pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option
     Ok(user)
 }
 
+/// Sets whether `user_id`'s future transactions hide their identity from other users.
 pub async fn set_private_transactions(pool: &SqlitePool, user_id: u32, private_transactions: bool) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -60,6 +72,7 @@ pub async fn set_private_transactions(pool: &SqlitePool, user_id: u32, private_t
     Ok(())
 }
 
+/// Sets whether `user_id` appears on the leaderboard.
 pub async fn set_on_leaderboard(pool: &SqlitePool, user_id: u32, on_leaderboard: bool) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -71,6 +84,8 @@ pub async fn set_on_leaderboard(pool: &SqlitePool, user_id: u32, on_leaderboard:
     Ok(())
 }
 
+/// Overwrites `name`, `role`, and `balance` for the user identified by `user.id`.
+/// Other fields on `user` (email, google_id, flags) are ignored.
 pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -84,6 +99,7 @@ pub async fn update_user(pool: &SqlitePool, user: UserRow) -> Result<(), Databas
     Ok(())
 }
 
+/// Permanently deletes the user with `user_id`.
 pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -95,6 +111,7 @@ pub async fn delete_user(pool: &SqlitePool, user_id: u32) -> Result<(), Database
     Ok(())
 }
 
+/// Deletes every [`crate::auth::Session`] belonging to `user_id`, logging them out everywhere.
 pub async fn invalidate_all_user_sessions(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -105,6 +122,7 @@ pub async fn invalidate_all_user_sessions(pool: &SqlitePool, user_id: u32) -> Re
     Ok(())
 }
 
+/// Renames `user_id` to `new_name`.
 pub async fn update_user_name(pool: &SqlitePool, user_id: u32, new_name: &str) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -117,6 +135,7 @@ pub async fn update_user_name(pool: &SqlitePool, user_id: u32, new_name: &str) -
     Ok(())
 }
 
+/// Sets `user_id`'s balance to `new_balance` (an absolute value, not a delta).
 pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -128,14 +147,18 @@ pub async fn update_user_balance(pool: &SqlitePool, user_id: u32, new_balance: f
     Ok(())
 }
 
+/// A pending or completed email-address change request.
 #[derive(sqlx::FromRow)]
 pub struct EmailSwitch {
     pub user_id: u32,
     pub token: String,
+    /// True if more than 60 seconds have passed since the switch was initiated.
     pub expired: bool,
     pub completed: bool,
 }
 
+/// Records that `user_id` started an email switch, identified by the random `token`
+/// sent to their new address for verification.
 pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32, token: &str) -> Result<(), DatabaseError> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
     sqlx::query(
@@ -148,6 +171,7 @@ pub async fn initiate_email_switch(pool: &SqlitePool, user_id: u32, token: &str)
     Ok(())
 }
 
+/// Looks up an [`EmailSwitch`] by its verification token; `None` if no such token exists.
 pub async fn get_email_switch(pool: &SqlitePool, token: &str) -> Result<Option<EmailSwitch>, DatabaseError> {
     let email_switch: Option<EmailSwitch> = sqlx::query_as(
         r#"
@@ -162,6 +186,7 @@ pub async fn get_email_switch(pool: &SqlitePool, token: &str) -> Result<Option<E
     Ok(email_switch)
 }
 
+/// Deletes the [`EmailSwitch`] row for `token` (e.g. after it's cancelled or consumed).
 pub async fn remove_email_switch(pool: &SqlitePool, token: &str) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -173,6 +198,11 @@ pub async fn remove_email_switch(pool: &SqlitePool, token: &str) -> Result<(), D
     Ok(())
 }
 
+/// Applies a verified email switch: updates the user's `email`/`google_id` and marks
+/// the [`EmailSwitch`] as completed, atomically in one transaction.
+///
+/// This is applied even if `email_switch.expired` is true, so the completion status
+/// is preserved for auditing; expiry should be checked by the caller before calling this.
 pub async fn finalize_email_switch(pool: &SqlitePool, email_switch: &EmailSwitch, new_email: &str, google_id: &str) -> Result<(), DatabaseError> {
     let mut tx = pool.begin().await?;
 
@@ -198,6 +228,7 @@ pub async fn finalize_email_switch(pool: &SqlitePool, email_switch: &EmailSwitch
     Ok(())
 }
 
+/// Fetches all users with exactly the given `role`.
 pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<UserRow>, DatabaseError> {
     let users: Vec<UserRow> = sqlx::query_as(
         r#"
@@ -212,6 +243,8 @@ pub async fn get_users_from_role(pool: &SqlitePool, role: Role) -> Result<Vec<Us
 //          Shop
 //
 
+/// Inserts a new product (ignoring `product.id` and `product.stock`, which are
+/// assigned/defaulted by the database) and returns it with its assigned id.
 pub async fn create_product(pool: &SqlitePool, mut product: ProductRow) -> Result<ProductRow, DatabaseError> {
     let id: u32 = sqlx::query_scalar(
         r#"
@@ -230,6 +263,7 @@ pub async fn create_product(pool: &SqlitePool, mut product: ProductRow) -> Resul
     Ok(product)
 }
 
+/// Fetches a single product by id.
 pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<ProductRow, DatabaseError> {
     let product: ProductRow = sqlx::query_as(
         r#"
@@ -240,6 +274,7 @@ pub async fn get_product(pool: &SqlitePool, id: u32) -> Result<ProductRow, Datab
     Ok(product)
 }
 
+/// Fetches all products, newest (highest id) first.
 pub async fn get_products(pool: &SqlitePool) -> Result<Vec<ProductRow>, DatabaseError> {
     let products: Vec<ProductRow> = sqlx::query_as(
         r#"
@@ -251,6 +286,7 @@ pub async fn get_products(pool: &SqlitePool) -> Result<Vec<ProductRow>, Database
     Ok(products)
 }
 
+/// Overwrites all editable fields of the product with id `product.id`.
 pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -274,6 +310,7 @@ pub async fn update_product_data(pool: &SqlitePool, product: ProductRow) -> Resu
     Ok(())
 }
 
+/// Sets product `id`'s stock to `stock` (`None` for unlimited).
 pub async fn update_product_stock(pool: &SqlitePool, id: u32, stock: Option<i32>) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -289,6 +326,7 @@ pub async fn update_product_stock(pool: &SqlitePool, id: u32, stock: Option<i32>
     Ok(())
 }
 
+/// Permanently deletes the product with `id`.
 pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -300,7 +338,10 @@ pub async fn delete_product(pool: &SqlitePool, id: u32) -> Result<(), DatabaseEr
     Ok(())
 }
 
-/// Returns the created transaction's id 
+/// Inserts a [`PendingTransaction`] as a `StoreTransaction` row (timestamped now)
+/// plus one `TransactionItem` row per purchased product.
+///
+/// Returns the created transaction's id
 pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransaction) -> Result<u32, DatabaseError> {
     let id: u32 = sqlx::query_scalar(
         r#"
@@ -328,6 +369,13 @@ pub async fn create_transaction(pool: &SqlitePool, transaction: PendingTransacti
     Ok(id)
 }
 
+/// Reverses a purchase: deletes the `StoreTransaction` row (cascading to its items)
+/// and refunds `abs(amount)` back to `user_id`'s balance, atomically.
+///
+/// Note this does not restore product stock consumed by the purchase.
+///
+/// # Errors
+/// Returns [`sqlx::Error::RowNotFound`] (wrapped) if `transaction_id` doesn't exist.
 pub async fn undo_purchase(pool: &SqlitePool, transaction_id: u32, user_id: u32, amount: f32) -> Result<(), DatabaseError> {
     let mut tx = pool.begin().await?;
 
@@ -356,6 +404,7 @@ pub async fn undo_purchase(pool: &SqlitePool, transaction_id: u32, user_id: u32,
     Ok(())
 }
 
+/// Fetches a transaction's header row (without its line items) by id.
 pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionRow, DatabaseError> {
     let transaction: TransactionRow = sqlx::query_as(r#"
         SELECT id, user, amount, datetime, admin_issued
@@ -366,6 +415,12 @@ pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<T
     Ok(transaction)
 }
 
+/// Fetches a transaction along with its line items, building a [`TransactionDetail`].
+///
+/// Note `user` is only used for its `private_transactions` flag and to populate
+/// the response's `user` field ([`crate::model::TransactionDetail::create`]) — it is
+/// not necessarily the transaction's actual buyer (`transaction.user`); the caller
+/// is responsible for passing the right [`UserRow`].
 pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, user: UserRow) -> Result<TransactionDetail, DatabaseError> {
     let transaction = get_transaction(pool, transaction_id).await?;
 
@@ -382,10 +437,18 @@ pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, us
     Ok(detailed_transaction)
 }
 
+/// Search terms in [`query_transactions`] that are treated as meaning "payments/deposits"
+/// (matched against `st.amount > 0`) rather than as full-text search terms.
 const PAYMENT_KEYWORDS: [&str; 4] = [
     "swish", "insättning", "deposit", "payment"
 ];
 
+/// Builds and runs a dynamic SQL query over transactions, filtered/paginated
+/// according to `query`: by user id(s), product id(s), time range, admin-issued
+/// flag, a keyset `cursor`, and a full-text `search_term` (matched against the
+/// `TransactionFts` table, with [`PAYMENT_KEYWORDS`] special-cased to mean
+/// "amount > 0" instead of a literal text match). Results are ordered by
+/// `(datetime, id)` ascending or descending per `query.descending`, capped at `query.limit`.
 pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> Result<Vec<TransactionSummary>, DatabaseError> {
     let mut builder = QueryBuilder::new(r#"
         SELECT st.id, u.email AS user_email, st.amount, st.datetime, st.admin_issued
@@ -482,6 +545,8 @@ pub async fn query_transactions(pool: &SqlitePool, query: TransactionQuery) -> R
     Ok(transactions)
 }
 
+/// Anonymizes `user_id`'s past non-admin-issued transactions by clearing their
+/// `user` field, and removes them from the full-text search index.
 pub async fn unlink_transactions(pool: &SqlitePool, user_id: u32) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -503,6 +568,7 @@ pub async fn unlink_transactions(pool: &SqlitePool, user_id: u32) -> Result<(), 
 //          Payment
 //
 
+/// Inserts a new Swish payment request row to track an in-flight payment.
 pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRequestRow) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"
@@ -521,6 +587,7 @@ pub async fn create_payment_request(pool: &SqlitePool, row: SwishPaymentRequestR
     Ok(())
 }
 
+/// Fetches a Swish payment request by its id (Swish's payment request UUID).
 pub async fn get_payment_request(pool: &SqlitePool, payment_id: String) -> Result<SwishPaymentRequestRow, DatabaseError> {
     let payment_request = sqlx::query_as(
         r#"
@@ -530,6 +597,7 @@ pub async fn get_payment_request(pool: &SqlitePool, payment_id: String) -> Resul
     Ok(payment_request)
 }
 
+/// Updates the status of the Swish payment request with `payment_id`.
 pub async fn update_payment_request(pool: &SqlitePool, payment_id: String, status: swish::Status) -> Result<(), DatabaseError> {
     sqlx::query(
         r#"

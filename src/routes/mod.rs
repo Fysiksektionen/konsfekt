@@ -1,3 +1,8 @@
+//! HTTP route handlers, grouped by domain into submodules ([`user`], [`products`],
+//! [`transactions`], [`payment`], [`stats`], [`oauth`], [`backup`], [`debug`]),
+//! plus shared middleware ([`session_middleware`], [`api_logging_middleware`]) and
+//! the [`CurrentUser`] request extractor used by handlers to require an authenticated user.
+
 pub mod routes;
 pub mod oauth;
 pub mod products;
@@ -16,6 +21,7 @@ use sqlx::SqlitePool;
 use crate::{AppState, Role, auth, database::model::UserRow, error::{ApiResult, AppError}, return_err, utils::{self, get_path}};
 
 const LOGIN_PATH: &str = "/login";
+/// Paths [`session_middleware`] lets through without requiring a valid session cookie.
 const PATH_WHITELIST: [&str; 4] = [
     LOGIN_PATH,
     "/api/auth/google",
@@ -27,12 +33,17 @@ const PATH_WHITELIST: [&str; 4] = [
 //      CurrentUser Extractor
 //
 
+/// An actix-web extractor that resolves the current request's user from its
+/// session cookie. Add `current_user: CurrentUser` as a handler parameter to
+/// require authentication (extraction fails with `401` otherwise); chain
+/// [`Self::require_role`] to additionally enforce a minimum [`Role`].
 struct CurrentUser {
     user: UserRow,
 }
 
 impl CurrentUser {
 
+    /// Fails the request with `403 Forbidden` unless the user's role is `>= role`.
     pub fn require_role(self, role: Role) -> ApiResult<Self> {
         if self.user.role >= role {
             return Ok(self);
@@ -41,6 +52,7 @@ impl CurrentUser {
         return_err!(actix_web::error::ErrorForbidden("User doesn't have the requierd role for this request."));
     }
 
+    /// Unwraps this extractor into the underlying [`UserRow`].
     pub fn into_row(self) -> UserRow {
         self.user
     }
@@ -86,6 +98,9 @@ impl FromRequest for CurrentUser {
 //          Helper Functions
 //
 
+/// Resolves the current user directly from a request's session cookie, without
+/// going through the [`CurrentUser`] extractor. Useful in handlers that need the
+/// user but also want to distinguish cookie/session errors themselves.
 pub async fn user_from_cookie(pool: &SqlitePool, req: &HttpRequest) -> Result<UserRow, AppError> {
     let user = auth::get_user_from_cookie(pool, req.cookie(auth::SESSION_COOKIE)).await?;
 
@@ -105,9 +120,15 @@ fn redirect_response(state: Data<AppState>, req: ServiceRequest, path: &str) -> 
     req.into_response(response)
 } 
 
+/// Global auth gate applied to every request (registered in `create_http`, in `main.rs`).
+/// Paths in [`PATH_WHITELIST`], `/_app/*`, and `/uploads/*` pass through
+/// unchecked. For everything else: `/api/*` requests without a valid session are
+/// rejected with `401`; page requests are redirected to `/login` instead. A request
+/// to `/login` while already logged in is redirected to `/`. On success, the
+/// validated [`auth::Session`] is stashed in the request extensions for downstream use.
 pub async fn session_middleware(
     state: Data<AppState>,
-    req: ServiceRequest, 
+    req: ServiceRequest,
     next: middleware::Next<BoxBody>
 ) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
     let path = req.path();

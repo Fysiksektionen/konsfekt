@@ -13,6 +13,11 @@ use crate::{AppState, error::GenericError};
 // Human readable alphabet (a-z, 0-9 without l, o, 0, 1 to avoid confusion)
 const READABLE_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
 
+/// Generates a 32-character cryptographically secure random string using a
+/// human-readable alphabet (lowercase letters and digits, excluding easily
+/// confused characters `l`, `o`, `0`, `1`). Used e.g. for session tokens and secrets.
+///
+/// Returns `None` if the OS RNG fails to provide randomness.
 pub fn gen_secure_random_str() -> Option<String> {
     let mut rand_bytes = [0u8;32];
     OsRng.try_fill_bytes(&mut rand_bytes).ok()?;
@@ -32,13 +37,20 @@ pub fn get_path(state: &Data<AppState>, path: &str) -> String {
     }
 }
 
+/// Reads an entire file into a `String`. Thin wrapper around [`fs::read_to_string`].
 pub fn read_to_string(path: &str) -> Result<String, std::io::Error> {
     return fs::read_to_string(path)
 }
 
+/// Width/height (in pixels) that product images are resized to before being saved.
 pub const IMG_DISK_SIZE: u32 = 512;
+/// Directory product images are stored in, keyed by product id/name.
 pub const IMG_DISK_PATH: &str = "./db/uploads/images/product/";
 
+/// Crops `img_file` to a centered square, resizes it to [`IMG_DISK_SIZE`] x
+/// [`IMG_DISK_SIZE`], and saves it as `<IMG_DISK_PATH><name>.webp`.
+///
+/// Returns `None` if the upload can't be reopened, decoded as an image, or saved.
 pub fn save_img_to_disk(img_file: TempFile, name: &str) -> Option<()> {
     let file = img_file.file.reopen().ok()?;
     let reader = BufReader::new(file);
@@ -60,6 +72,7 @@ pub fn save_img_to_disk(img_file: TempFile, name: &str) -> Option<()> {
     resized.save(format!("{IMG_DISK_PATH}{}.webp", name)).ok()
 }
 
+/// Deletes the product image previously saved by [`save_img_to_disk`] for `name`.
 pub fn delete_img_from_disk(name: &str) -> Result<(), GenericError> {
     match fs::remove_file(format!("{IMG_DISK_PATH}{name}.webp")) {
         Ok(_) => Ok(()),

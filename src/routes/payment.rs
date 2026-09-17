@@ -1,14 +1,22 @@
+//! Payment routes, currently only [`swish`] (Swish is the only supported [`PaymentMethod`]).
+
+/// Supported payment methods. Currently unused elsewhere in the codebase; only
+/// [`swish`] is implemented.
 pub enum PaymentMethod {
     Swish,
 }
 
+/// Swish deposit flow: creating a payment request, receiving Swish's async
+/// callback, polling status, and generating a QR code for the Swish app to scan.
 pub mod swish {
     use actix_web::{HttpRequest, HttpResponse, get, http::StatusCode, post, web::{self, Data}};
     use uuid::Uuid;
 
     use crate::{AppState, Role, database::{self, crud, model::SwishPaymentRequestRow}, error::{ApiResult, AppError, ClientError, GenericError, SwishErrorResponse}, model::PendingTransaction, return_err, routes::{CurrentUser}};
 
+    /// Path Swish POSTs payment status updates to. Must match [`swish_callback`]'s route attribute.
     pub const CALLBACK_URL: &str = "/api/payment/swish/callback"; // If changing URL: Remember to change post function
+    /// Swish's API for generating a scannable QR code for a payment request token.
     pub const SWISH_QR_CODE_API: &str = "https://mpc.getswish.net/qrg-swish/api/v1/commerce";
     
     #[derive(serde::Serialize)]
@@ -24,6 +32,9 @@ pub mod swish {
     }
 
     impl PaymentRequestObject {
+        /// Builds the request body for creating a Swish payment request of `amount`
+        /// SEK, with a fresh random `callbackIdentifier` used later to authenticate
+        /// Swish's callback (see [`swish_callback`]).
         pub fn new(state: &Data<AppState>, amount: f32) -> Self {
             PaymentRequestObject {
                 payeeAlias: state.env.swish_number.clone(),
@@ -36,6 +47,7 @@ pub mod swish {
         }
     }
 
+    /// Body Swish POSTs to [`CALLBACK_URL`] when a payment request's status changes.
     #[derive(serde::Deserialize, Debug)]
     #[allow(non_snake_case, dead_code)]
     pub struct PaymentCallback {
@@ -55,6 +67,8 @@ pub mod swish {
         errorMessage: Option<String>,
     }
 
+    /// Result of successfully creating a payment request with Swish, as parsed
+    /// from its `201 Created` response.
     pub struct SwishPaymentResponse {
         payment_id: String,
         token: String,
@@ -62,6 +76,7 @@ pub mod swish {
         callback_identifier: String
     }
 
+    /// Lifecycle status of a Swish payment request, mirrored from Swish's own status strings.
     #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize, sqlx::Type)]
     #[serde(rename_all = "lowercase")]
     #[sqlx(type_name = "swish_status", rename_all = "lowercase")]
@@ -75,6 +90,7 @@ pub mod swish {
 
     impl std::str::FromStr for Status {
         type Err = GenericError;
+        /// Parses one of Swish's status strings (case-insensitive) into a [`Status`].
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             match s.to_lowercase().as_str() {
                 "pending" => Ok(Status::Pending),
@@ -89,6 +105,8 @@ pub mod swish {
         }
     }
 
+    /// Creates a Swish payment request for `amount` SEK via Swish's `PUT`
+    /// payment-requests endpoint, generating our own UUID as the payment id.
     async fn initiate_payment(state: &Data<AppState>, amount: f32) -> Result<SwishPaymentResponse, AppError> {
         // Our's and Swish's payment identifier
         let payment_id: String = Uuid::new_v4().simple().to_string().to_uppercase(); 
@@ -120,15 +138,22 @@ pub mod swish {
         Err(SwishErrorResponse::to_error(response).await.into())
     }
 
+    /// Query params for [`create_payment_request`].
     #[derive(serde::Deserialize)]
     struct CreatePaymentRequestQuery { amount: f32 }
 
+    /// Response body for [`create_payment_request`].
     #[derive(serde::Serialize)]
-    struct CreatePaymentRequestResponse { 
+    struct CreatePaymentRequestResponse {
         payment_id: String,
         token: String
     }
 
+    /// `POST /api/payment/swish/create_payment_request?amount=<f32>` — starts a
+    /// Swish deposit of at least 30 SEK for the current user: creates the request
+    /// with Swish and records it as [`Status::Pending`]. The actual balance update
+    /// happens later, in [`swish_callback`], once Swish confirms payment.
+    /// Requires an authenticated user.
     #[post("/api/payment/swish/create_payment_request")]
     pub async fn create_payment_request(state: Data<AppState>, current_user: CurrentUser, query: web::Query<CreatePaymentRequestQuery>) -> ApiResult<web::Json<CreatePaymentRequestResponse>> {
         // let user = user_from_cookie(&state.db, &req).await?;
@@ -157,6 +182,16 @@ pub mod swish {
         }))
     }
 
+    /// `POST /api/payment/swish/callback` — Swish's async status-update webhook
+    /// (URL registered with Swish as [`CALLBACK_URL`]; whitelisted in
+    /// [`crate::routes::PATH_WHITELIST`] since Swish has no session cookie).
+    ///
+    /// Authenticates the callback via the `callbackIdentifier` header, matching it
+    /// against the value stored when the payment request was created — anyone
+    /// without it is rejected with `401`, so a POST here can't forge a payment. On
+    /// a transition to [`Status::Paid`], credits the user's balance and records a
+    /// deposit transaction (only once, guarded by comparing against the previously
+    /// stored status).
     #[post("/api/payment/swish/callback")] // If changing URL: Remember to change CALLBACK_URL
     pub async fn swish_callback(state: Data<AppState>, req: HttpRequest, callback: web::Json<PaymentCallback>) -> ApiResult<()> {
         let payment_id = callback.id.clone();
@@ -190,6 +225,7 @@ pub mod swish {
         Ok(())
     }
 
+    /// Response body for [`check_status`].
     #[derive(serde::Serialize)]
     struct PaymentStatusResponse {
         status: Status,
@@ -197,6 +233,9 @@ pub mod swish {
         balance: f32,
     }
 
+    /// `GET /api/payment/status/{payment_id}` — polls a Swish payment request's
+    /// current status. Requires an authenticated user, and the payment request
+    /// must belong to that user (`403` otherwise).
     #[get("/api/payment/status/{payment_id}")]
     pub async fn check_status(state: Data<AppState>, current_user: CurrentUser, path: web::Path<String>) -> ApiResult<web::Json<PaymentStatusResponse>> {
         // let user = user_from_cookie(&state.db, &req).await?;
@@ -212,6 +251,7 @@ pub mod swish {
         }))
     }
 
+    /// Request body sent to [`SWISH_QR_CODE_API`].
     #[derive(serde::Serialize)]
     struct QrCodeData {
         token: String,
@@ -220,6 +260,9 @@ pub mod swish {
         border: String,
     }
 
+    /// `GET /api/payment/qr/{payment_id}` — fetches a 300x300 PNG QR code from
+    /// Swish for the given payment request, for the Swish app to scan. Requires
+    /// an authenticated user, and the payment request must belong to that user (`403` otherwise).
     #[get("/api/payment/qr/{payment_id}")]
     pub async fn get_qr_code(state: Data<AppState>, current_user: CurrentUser, path: web::Path<String>) -> ApiResult<HttpResponse> {
         // let user = user_from_cookie(&state.db, &req).await?;

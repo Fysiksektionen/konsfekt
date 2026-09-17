@@ -1,8 +1,15 @@
+//! Aggregate statistics routes (best seller, purchase/deposit/customer totals).
+//! All routes here only require a valid session (via [`crate::routes::session_middleware`])
+//! and have no additional role check, unlike most other `/api/*` routes.
+
 use actix_web::{get, web::{self, Data}};
 use sqlx::{Database, Encode, QueryBuilder, Type, query::{QueryAs, QueryScalar}};
 
 use crate::{AppState, error::{ApiResult, DatabaseError}};
 
+/// An optional `[start, end)`-style UNIX timestamp filter on `StoreTransaction.datetime`,
+/// used as a query-string parameter (`?start=<i64>&end=<i64>`) on the stats routes.
+/// Either or both bounds may be omitted for an open-ended/unfiltered range.
 #[derive(serde::Deserialize)]
 pub struct TimeRange {
     start: Option<i64>,
@@ -10,6 +17,9 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
+    /// Builds the SQL predicate fragment for this range (e.g. `"WHERE st.datetime BETWEEN ? AND ?"`),
+    /// prefixed with `start_with_if_present` only when the range is non-empty.
+    /// Pair with [`TimeRangeBindable::bind_time_range`] to bind the placeholders.
     pub fn as_predicate(&self, start_with_if_present: &str) -> String {
         match (self.start, self.end) {
             (Some(_), Some(_)) => format!("{}st.datetime BETWEEN ? AND ?", start_with_if_present),
@@ -19,6 +29,8 @@ impl TimeRange {
         }
     }
 
+    /// Appends this range's SQL condition (and bound values) directly onto a [`QueryBuilder`],
+    /// prefixed with `prefix`. No-op if the range is empty. Used by [`crud::query_transactions`](crate::database::crud::query_transactions).
     pub fn push_onto_builder<'args, DB: Database>(&self, builder: &mut QueryBuilder<'args, DB>, prefix: &str)
     where i64: Encode<'args, DB> + Type<DB>
     {
@@ -42,6 +54,8 @@ impl TimeRange {
     }
 }
 
+/// Binds whichever of `time_range`'s `start`/`end` are present onto a query type,
+/// matching the placeholders produced by [`TimeRange::as_predicate`].
 pub trait TimeRangeBindable {
     fn bind_time_range(self, time_range: TimeRange) -> Self;
 }
@@ -60,7 +74,9 @@ impl <'args, DB: Database>TimeRangeBindable for QueryBuilder<'args, DB>
     }
 }
 
+/// Shorthand for [`sqlx::query::QueryAs`] parameterized over a database's own argument type.
 type QAs<'q, DB, O> = QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>;
+/// Shorthand for [`sqlx::query::QueryScalar`] parameterized over a database's own argument type.
 type QScalar<'q, DB, O> = QueryScalar<'q, DB, O, <DB as Database>::Arguments<'q>>;
 
 impl <'q, DB: Database, O>TimeRangeBindable for QAs<'q, DB, O>
@@ -89,6 +105,7 @@ impl <'q, DB: Database, O>TimeRangeBindable for QScalar<'q, DB, O>
     }
 }
 
+/// Response body for [`best_selling_product`].
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
 struct BestSellingProduct {
     id: u32,
@@ -96,6 +113,9 @@ struct BestSellingProduct {
     total_sold: u32,
 }
 
+/// `GET /api/stats/best_selling_product?start=<i64>&end=<i64>` — the product with
+/// the highest total quantity sold within the (optional) time range, or `null` if
+/// there were no sales.
 #[get("/api/stats/best_selling_product")]
 pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<TimeRange>) -> ApiResult<web::Json<Option<BestSellingProduct>>> {
     let sql = format!(r#"
@@ -119,12 +139,16 @@ pub async fn best_selling_product(state: Data<AppState>, time_range: web::Query<
     Ok(web::Json(product))
 }
 
+/// Response body for [`purchases`].
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
 struct PurchasesInfo {
     count: u32,
     total: f32,
 }
 
+/// `GET /api/stats/purchases?start=<i64>&end=<i64>` — count and total value of
+/// purchases (transactions with `amount <= 0`) within the (optional) time range.
+/// `total` is reported as a positive number (the negated sum of purchase amounts).
 #[get("/api/stats/purchases")]
 pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>) -> ApiResult<web::Json<PurchasesInfo>> {
     let sql = format!(r#"
@@ -141,12 +165,15 @@ pub async fn purchases(state: Data<AppState>, time_range: web::Query<TimeRange>)
     Ok(web::Json(transactions))
 }
 
+/// Response body for [`deposits`].
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
 struct DepositsInfo {
     total: f32,
     average: f32,
 }
 
+/// `GET /api/stats/deposits?start=<i64>&end=<i64>` — total and average value of
+/// deposits (transactions with `amount > 0`) within the (optional) time range.
 #[get("/api/stats/deposits")]
 pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) -> ApiResult<web::Json<DepositsInfo>> {
     let sql = format!(r#"
@@ -163,6 +190,7 @@ pub async fn deposits(state: Data<AppState>, time_range: web::Query<TimeRange>) 
     Ok(web::Json(info))
 }
 
+/// Response body for [`customers`].
 #[derive(sqlx::FromRow, serde::Serialize, Debug)]
 struct CustomerInfo {
     count: u32,
@@ -170,6 +198,8 @@ struct CustomerInfo {
     private_transactions: u32
 }
 
+/// `GET /api/stats/customers` — total user count, and how many have
+/// `on_leaderboard`/`private_transactions` enabled.
 #[get("/api/stats/customers")]
 pub async fn customers(state: Data<AppState>) -> ApiResult<web::Json<CustomerInfo>> {
     let sql = r#"

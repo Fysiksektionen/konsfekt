@@ -1,3 +1,6 @@
+//! Database access layer: connection setup ([`init_database`]), row types
+//! ([`model`]), queries ([`crud`]), and backup creation ([`backup`]).
+
 pub mod crud;
 pub mod model;
 pub mod backup;
@@ -5,6 +8,10 @@ pub mod backup;
 use std::{fs, path::Path, str::FromStr};
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};
 
+/// Opens (creating if missing) the SQLite database at `db/db.sqlite`, enables
+/// foreign key enforcement, and runs pending migrations from `./migrations`.
+///
+/// Also ensures the `db/uploads/images/product` directory exists for product images.
 pub async fn init_database() -> Result<Pool<Sqlite>, sqlx::Error> {
     log::trace!("Initalizing database");
     let _ = fs::create_dir_all(Path::new("./db/uploads/images/product"));

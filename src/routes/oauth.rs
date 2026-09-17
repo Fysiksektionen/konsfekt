@@ -1,3 +1,6 @@
+//! Google OAuth login/logout and the email-switch flow, which reuses the OAuth
+//! callback (keyed by the `state` param) to re-verify a new email address via Google.
+
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, cookie::Cookie, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -9,6 +12,8 @@ use crate::{AppState, auth::{self, Session}, database::crud::{self, EmailSwitch}
 //              Google OAuth
 //
 
+/// Cookie holding the random `state` value sent to Google, checked against the
+/// callback's `state` query param to prevent CSRF on the login flow.
 pub const LOGIN_STATE_COOKIE: &str = "login-state";
 
 /// Sent to /api/auth/google/callback
@@ -18,12 +23,14 @@ struct GoogleCallbackQuery {
     state: Option<String> // Email switch token
 }
 
+/// Response from Google's OAuth token endpoint.
 #[derive(Deserialize, Debug)]
 struct GoogleTokenResponse {
     access_token: String,
     // refresh_token: Option<String>
 }
 
+/// The subset of Google's userinfo response konsfekt cares about.
 #[derive(Deserialize, Serialize, Debug)]
 struct GoogleUserInfo {
     email: String,
@@ -31,6 +38,8 @@ struct GoogleUserInfo {
 }
 
 impl GoogleUserInfo {
+    /// Exchanges an OAuth authorization `google_code` for an access token, then
+    /// fetches the corresponding Google user's email and id.
     pub async fn get_from_google(state: Data<AppState>, google_code: &str) -> Result<Self, AppError> {
         let resp: GoogleTokenResponse = state.client
             .post("https://oauth2.googleapis.com/token")
@@ -55,6 +64,8 @@ impl GoogleUserInfo {
 
 }
 
+/// Builds the Google OAuth consent-screen URL, without a `state` param (callers
+/// append their own via `&state=...`).
 fn get_google_auth_url(state: &Data<AppState>) -> String {
     format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
@@ -64,6 +75,9 @@ fn get_google_auth_url(state: &Data<AppState>) -> String {
     )
 }
 
+/// `GET /api/auth/google` — starts the Google login flow: sets a short-lived
+/// [`LOGIN_STATE_COOKIE`] and redirects to Google's consent screen. Whitelisted
+/// in [`crate::routes::PATH_WHITELIST`] so it's reachable without an existing session.
 #[get("/api/auth/google")]
 pub async fn google_login(state: Data<AppState>) -> ApiResult<HttpResponse> {
     let login_state = utils::gen_secure_random_str().ok_or(GenericError::new("Could not generate login state"))?;
@@ -85,6 +99,11 @@ pub async fn google_login(state: Data<AppState>) -> ApiResult<HttpResponse> {
         .finish())
 }
 
+/// `GET /api/auth/google/callback?code=<code>&state=<state>` — Google's OAuth
+/// redirect target. `state` doubles as either the login CSRF token (checked
+/// against [`LOGIN_STATE_COOKIE`]) or, if it matches a pending [`EmailSwitch`]
+/// token, completes that email-switch flow instead of a normal login. On success
+/// for a normal login, creates or looks up the user (by Google id) and logs them in.
 #[get("/api/auth/google/callback")]
 pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web::Query<GoogleCallbackQuery>) -> ApiResult<HttpResponse> {
     let Some(google_code) = &query.code else {
@@ -117,14 +136,20 @@ pub async fn google_callback(state: Data<AppState>, req: HttpRequest, query: web
     return create_session_response(state, req, user?.id).await;
 }
 
+/// Result of attempting to complete a pending [`EmailSwitch`] in [`handle_email_switch`].
 #[derive(Debug)]
 pub enum EmailSwitchOutcome {
     Success,
+    /// The switch request was older than 60 seconds; it has been removed.
     Expired,
+    /// The verified Google account is already linked to a different user.
     EmailTaken,
+    /// The switch was already completed, or the account is already the requesting user's own.
     NoOp
 }
 
+/// Returns a copy of the named cookie marked for removal (to be sent back in a
+/// response), or `None` if the request didn't have that cookie.
 fn try_make_removal_on_cookie(req: HttpRequest, cookie_name: &str) -> Option<Cookie<'_>> {
     if let Some(mut cookie) = req.cookie(cookie_name) {
         cookie.make_removal();
@@ -133,6 +158,10 @@ fn try_make_removal_on_cookie(req: HttpRequest, cookie_name: &str) -> Option<Coo
     return None;
 }
 
+/// Validates and, if possible, completes a pending [`EmailSwitch`] now that the
+/// user has re-authenticated with Google as `user_info`: rejects expired or
+/// already-taken switches, invalidates all of the user's sessions, and finalizes
+/// the switch in the database.
 async fn handle_email_switch(pool: &SqlitePool, email_switch: &EmailSwitch, user_info: GoogleUserInfo) -> Result<EmailSwitchOutcome, DatabaseError> {
     if email_switch.expired && !email_switch.completed {
         crud::remove_email_switch(pool, &email_switch.token).await?;
@@ -157,6 +186,8 @@ async fn handle_email_switch(pool: &SqlitePool, email_switch: &EmailSwitch, user
     return Ok(EmailSwitchOutcome::Success);
 }
 
+/// Creates a session for `user_id`, sets the [`auth::SESSION_COOKIE`] (2 week
+/// expiry), removes the [`LOGIN_STATE_COOKIE`] if present, and redirects to `/`.
 async fn create_session_response(state: Data<AppState>, req: HttpRequest, user_id: u32) -> ApiResult<HttpResponse> {
     let session_token = match auth::create_session(&state.db, user_id).await {
         Ok((_, token)) => token,
@@ -179,6 +210,9 @@ async fn create_session_response(state: Data<AppState>, req: HttpRequest, user_i
     Ok(resp_builder.finish())
 }
 
+/// `GET /api/auth/logout` — invalidates the current session and redirects to
+/// `/login`, removing the session cookie. Requires an authenticated user (the
+/// session is read from request extensions, populated by [`crate::routes::session_middleware`]).
 #[get("/api/auth/logout")]
 pub async fn logout(state: Data<AppState>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let extensions = req.extensions();
@@ -196,6 +230,10 @@ pub async fn logout(state: Data<AppState>, req: HttpRequest) -> ApiResult<HttpRe
     Ok(resp_builder.finish())
 }
 
+/// `POST /api/auth/change_email` — starts an email-switch flow for the current
+/// user: records a pending [`EmailSwitch`] and redirects to Google's consent
+/// screen, keyed by the switch token as the `state` param (handled on return by
+/// [`google_callback`]). Requires an authenticated user.
 #[post("/api/auth/change_email")]
 pub async fn change_email(state: Data<AppState>, current_user: CurrentUser) -> ApiResult<HttpResponse> {
     let user = current_user.into_row();

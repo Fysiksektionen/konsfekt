@@ -1,3 +1,6 @@
+//! Product catalog and purchasing routes: CRUD on products, buying single/multiple
+//! products, and undoing a recent purchase (via an HMAC-signed token for anonymous purchases).
+
 use actix_web::{get, post, web::{self, Data, Json}};
 use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use hmac::{Hmac, Mac};
@@ -9,6 +12,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 use crate::{AppState, Role, database::{self, crud, model::UserRow}, error::{ApiResult, AppError, GenericError}, model::{PendingTransaction, Product, ProductParams}, return_err, routes::CurrentUser, utils};
 
+/// Rejects (`403`) editing a product with `modifiable: false` unless `user` is [`Role::Admin`].
 fn product_assert_permission(product: &Product, user: &UserRow) -> ApiResult<()> {
     if !product.flags.modifiable && user.role != Role::Admin {
         return_err!(actix_web::error::ErrorForbidden("Product not modifiable"));
@@ -16,6 +20,7 @@ fn product_assert_permission(product: &Product, user: &UserRow) -> ApiResult<()>
     Ok(())
 }
 
+/// Fetches a [`Product`] by an optional id, failing with `400` if `id` is `None`.
 async fn get_product_from_id(pool: &SqlitePool, id: Option<u32>) -> ApiResult<Product> {
     let Some(id) = id else {
         return_err!(actix_web::error::ErrorBadRequest("Missing required argument \"id\""));
@@ -26,6 +31,9 @@ async fn get_product_from_id(pool: &SqlitePool, id: Option<u32>) -> ApiResult<Pr
     Ok(product)
 }
 
+/// Multipart request body for [`create_product`]/[`update_product`]: a JSON
+/// `product` part plus an optional `image` file part (max 100MB, cropped/resized
+/// by [`utils::save_img_to_disk`]).
 #[derive(MultipartForm)]
 struct ProductAndImageForm {
     #[multipart(limit = "100MB")]
@@ -33,15 +41,22 @@ struct ProductAndImageForm {
     product: MpJson<ProductParams>,
 }
 
+/// Request body identifying a product by id, used by [`mark_sold_out`] and [`delete_product`].
 #[derive(serde::Deserialize)]
 struct ProductIdJson { id: u32 }
 
+/// Response for a successful purchase, and (reused as) the request body to [`undo_purchase`].
 #[derive(sqlx::FromRow, serde::Serialize, serde::Deserialize)]
 struct PurchaseResponse {
     transaction_id: u32,
     token: Option<String>, // Only needed if user has anonymous transactions enabled
 }
 
+/// Computes an HMAC-SHA256 token over `(transaction_id, user_id)` using the
+/// server's per-run `undo_purchase_secret`. Given to the buyer at purchase time
+/// so an anonymous (`private_transactions`) purchase can still be proven and
+/// undone later by [`verify_undo_token`], without storing the buyer's identity
+/// on the transaction itself.
 fn create_undo_token(secret: &str, transaction_id: u32, user_id: u32) -> Result<String, AppError> {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
         .map_err(|_| GenericError::new("Could not initialize HMAC"))?;
@@ -51,6 +66,8 @@ fn create_undo_token(secret: &str, transaction_id: u32, user_id: u32) -> Result<
     Ok(hex::encode(mac.finalize().into_bytes()))
 }
 
+/// Verifies a token produced by [`create_undo_token`] for `(transaction_id, user_id)`.
+/// Returns `Ok(false)` (rather than an error) for a malformed or mismatched token.
 fn verify_undo_token(secret: &str, transaction_id: u32, user_id: u32, token_hex: &str) -> Result<bool, AppError> {
     let Ok(token) = hex::decode(token_hex) else { return Ok(false) };
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
@@ -60,6 +77,9 @@ fn verify_undo_token(secret: &str, transaction_id: u32, user_id: u32, token_hex:
     Ok(mac.verify_slice(&token).is_ok())
 }
 
+/// `POST /api/create_product` (multipart: `product` JSON part + optional `image`
+/// file part) — creates a new product and its optional image, returning the
+/// updated full product list. Requires [`Role::Maintainer`].
 #[post("/api/create_product")]
 pub async fn create_product(state: Data<AppState>, current_user: CurrentUser, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> ApiResult<impl actix_web::Responder> {
     current_user.require_role(Role::Maintainer)?;
@@ -78,6 +98,12 @@ pub async fn create_product(state: Data<AppState>, current_user: CurrentUser, Mu
     Ok(web::Json(products))
 }
 
+/// `POST /api/update_product` (multipart: `product` JSON part with `id` set,
+/// + optional `image`) — partially updates a product and its optional image,
+/// returning the updated full product list. Requires [`Role::Maintainer`]; the
+/// product must have `modifiable: true` unless the caller is [`Role::Admin`]
+/// (see [`product_assert_permission`]). Restocking above zero (or to unlimited)
+/// automatically clears `marked_sold_out`.
 #[post("/api/update_product")]
 pub async fn update_product(state: Data<AppState>, current_user: CurrentUser, MultipartForm(form): MultipartForm<ProductAndImageForm>) -> ApiResult<impl actix_web::Responder> {
     // let user = user_from_cookie(&state.db, &req).await?;
@@ -107,6 +133,12 @@ pub async fn update_product(state: Data<AppState>, current_user: CurrentUser, Mu
     Ok(web::Json(products))
 }
 
+/// `POST /api/mark_sold_out` — flags a stocked product as sold out (cosmetic;
+/// doesn't change `stock`). Fails with `409` for products without stock tracking.
+///
+/// Note this handler takes no [`CurrentUser`]/role parameter, so — unlike the
+/// other product-mutating routes — it is reachable by any logged-in user, not
+/// just maintainers; worth double-checking this is intentional.
 #[post("/api/mark_sold_out")]
 pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJson>) -> ApiResult<()> {
     let mut product = get_product_from_id(&state.db, Some(params.id)).await?;
@@ -121,6 +153,9 @@ pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJso
     Ok(())
 }
 
+/// `POST /api/delete_product` — permanently deletes a product and its image,
+/// returning the updated full product list. Requires [`Role::Maintainer`] and
+/// (unless [`Role::Admin`]) the product must have `modifiable: true`.
 #[post("/api/delete_product")]
 pub async fn delete_product(state: Data<AppState>, current_user: CurrentUser, params: web::Json<ProductIdJson>) -> ApiResult<impl actix_web::Responder> {
     // let user = user_from_cookie(&state.db, &req).await?;
@@ -136,12 +171,20 @@ pub async fn delete_product(state: Data<AppState>, current_user: CurrentUser, pa
     Ok(web::Json(products))
 }
 
+/// `GET /api/get_products` — lists all products. No role requirement beyond an
+/// authenticated session (enforced by [`crate::routes::session_middleware`]).
 #[get("/api/get_products")]
 pub async fn get_products(state: Data<AppState>) -> ApiResult<impl actix_web::Responder> {
     let products = database::crud::get_products(&state.db).await?;
     Ok(web::Json(products))
 }
 
+/// `POST /api/buy_single_product` — buys one unit of a product for the current
+/// user: records the transaction, debits the balance, and decrements stock.
+/// Fails with `404` if the product isn't for sale (`stock: None`) and `402` if
+/// the user can't afford it. Returns a [`PurchaseResponse`] including an undo
+/// token (needed to undo the purchase later if `private_transactions` is set).
+/// Requires an authenticated user.
 #[post("/api/buy_single_product")]
 pub async fn buy_single_product(state: Data<AppState>, current_user: CurrentUser, product: web::Json<ProductIdJson>) -> ApiResult<Json<PurchaseResponse>> {
     // let user = user_from_cookie(&state.db, &req).await?;
@@ -175,17 +218,23 @@ pub async fn buy_single_product(state: Data<AppState>, current_user: CurrentUser
     Ok(Json(PurchaseResponse { transaction_id, token: Some(token) }))
 }
 
+/// Request body for [`buy_products`].
 #[derive(serde::Deserialize)]
 struct Cart {
     products: Vec<ProductInCart>
 }
 
+/// A single line in a [`Cart`].
 #[derive(serde::Deserialize)]
 struct ProductInCart {
     id: u32,
     quantity: u32,
 }
 
+/// `POST /api/buy_products` — buys a cart of products (each with a quantity) in
+/// one transaction for the current user. Same stock/balance checks and
+/// undo-token response as [`buy_single_product`], but for multiple products at once.
+/// Requires an authenticated user.
 #[post("/api/buy_products")]
 pub async fn buy_products(state: Data<AppState>, current_user: CurrentUser, cart: web::Json<Cart>) -> ApiResult<Json<PurchaseResponse>> {
     let user = current_user.require_role(Role::User)?.into_row();
@@ -226,6 +275,12 @@ pub async fn buy_products(state: Data<AppState>, current_user: CurrentUser, cart
     Ok(Json(PurchaseResponse { transaction_id, token: Some(token) }))
 }
 
+/// `POST /api/undo_purchase` — reverses a purchase made within the last 60
+/// seconds: refunds the balance and restores stock for each purchased item still
+/// tracking stock. Fails with `409` for deposits or expired transactions.
+/// Ownership is checked either by the transaction's stored `user` field, or (for
+/// anonymous/`private_transactions` purchases, where `user` is `None`) by
+/// verifying the request's undo token via [`verify_undo_token`]. Requires an authenticated user.
 #[post("/api/undo_purchase")]
 pub async fn undo_purchase(state: Data<AppState>, current_user: CurrentUser, purchase_response: web::Json<PurchaseResponse>) -> ApiResult<()> {
     // let user = user_from_cookie(&state.db, &req).await?;

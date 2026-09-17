@@ -51,7 +51,13 @@ async fn main() -> std::io::Result<()> {
         .await
 }
 
-fn start_backup_thread(env: &EnvironmentVariables, pool: SqlitePool) {
+/// Spawns a background task that periodically creates a database + uploads backup
+/// (via [`database::backup::create_backup`]). Backups are done at defined times of
+/// day using `env.backup_schedule` 
+///
+/// Assumes the caller already created an initial backup at startup; this only
+/// schedules the recurring ones. Failures are logged and do not stop the loop.
+fn start_backup_interval(env: &EnvironmentVariables, pool: SqlitePool) {
     // let sleep_time: u64 = env.backup_interval.second() as u64
     //                     + env.backup_interval.minute() as u64   * 60 
     //                     + env.backup_interval.hour()   as u64   * 60 * 60;
@@ -89,9 +95,6 @@ fn start_backup_thread(env: &EnvironmentVariables, pool: SqlitePool) {
 
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
-
-
-
     });
 }
 

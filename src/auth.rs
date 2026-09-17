@@ -8,8 +8,11 @@ use hex;
 
 use crate::{database::{crud, model}, error::{AppError, AuthError, DatabaseError}, utils};
 
+/// Name of the cookie holding the session token, in `"<id>.<secret>"` format.
 pub const SESSION_COOKIE: &str = "session-token";
 
+/// A persisted login session. Only `secret_hash` is stored/compared server-side;
+/// the raw secret is only ever held in the client's cookie (see [`Token`]).
 #[derive(sqlx::FromRow, serde::Serialize, Clone)]
 pub struct Session {
     pub id: String,
@@ -18,17 +21,25 @@ pub struct Session {
     pub user: u32
 }
 
+/// A parsed session cookie: a public `id` used to look up the [`Session`] row, and
+/// a secret checked (as its SHA-256 hash) against `Session::secret_hash`.
 pub struct Token {
     id: String,
     secret: String
 }
 
+/// State of a pending email-address change flow.
 pub enum EmailSwitchState {
+    /// The user has verified the switch and it is ready to complete, for the new email address.
     Authorized(String),
+    /// A switch is in progress but not yet verified.
     Active,
+    /// No email switch is in progress.
     Inactive
 }
 
+/// Extracts and splits the [`SESSION_COOKIE`] cookie's value (`"<id>.<secret>"`)
+/// into a [`Token`]. Returns `None` if the cookie is absent or malformed.
 pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     if let Some(cookie) = cookie {
         let session_token = cookie.to_string();
@@ -43,6 +54,16 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
     None
 }
 
+/// Resolves the logged-in user from a session cookie: parses it, looks up the
+/// session by its id, then fetches the associated user row.
+///
+/// Note this only checks that a non-expired session with the cookie's id exists;
+/// unlike [`validate_session`] it does not verify the token's secret against
+/// `Session::secret_hash`.
+///
+/// # Errors
+/// Returns `400 Bad Request` if the cookie is missing/malformed, or
+/// `401 Unauthorized` if the session doesn't exist or has expired.
 pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'static>>) -> Result<model::UserRow, AppError> {
     let Some(token) = parse_auth_cookie(cookie) else {
         // Or should it return internal server error becuase authentication has already been done
@@ -71,6 +92,9 @@ pub async fn get_user_from_cookie(pool: &SqlitePool, cookie: Option<Cookie<'stat
     }
 }
 
+/// Creates and persists a new [`Session`] for `user_id`, returning it along with
+/// the raw cookie token (`"<id>.<secret>"`) — the only time the raw secret is
+/// available, since only its hash is stored.
 pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<(Session, String), AppError> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
     let (id, secret) = match (utils::gen_secure_random_str(), utils::gen_secure_random_str()) {
@@ -96,6 +120,9 @@ pub async fn create_session(pool: &SqlitePool, user_id: u32) -> Result<(Session,
     return Ok((session, token));
 }
 
+/// Looks up the session referenced by `token.id` and verifies its secret matches
+/// (by comparing SHA-256 hashes). Returns `None` if the session doesn't exist,
+/// has expired, or the secret doesn't match.
 pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<Session>, DatabaseError> {
     let session = get_session(pool, token.id).await?;
 
@@ -111,6 +138,7 @@ pub async fn validate_session(pool: &SqlitePool, token: Token) -> Result<Option<
     Ok(None)
 }
 
+/// Deletes `session` from the database, logging the user out.
 pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<(), DatabaseError> {
     sqlx::query("
         DELETE FROM Session
@@ -118,6 +146,8 @@ pub async fn invalidate_session(pool: &SqlitePool, session: &Session) -> Result<
     Ok(())
 }
 
+/// Fetches the session with `session_id`, if it exists and is younger than 7 days.
+/// An expired session is deleted (via [`delete_session`]) and `None` is returned.
 async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Session>, DatabaseError> {
     let now = OffsetDateTime::now_utc().unix_timestamp(); 
     
@@ -138,11 +168,16 @@ async fn get_session(pool: &SqlitePool, session_id: String) -> Result<Option<Ses
     }
 }
 
+/// Deletes the session with `session_id` from the database.
 async fn delete_session(pool: &SqlitePool, session_id: String) -> Result<(), DatabaseError> {
     sqlx::query("DELETE FROM Session WHERE id = ?").bind(session_id).execute(pool).await?;
     Ok(())
 }
 
+/// Byte-for-byte equality check between two hashes.
+///
+/// Note this is not constant-time, so it is theoretically susceptible to timing
+/// attacks; it is used here to compare secret hashes rather than raw secrets.
 fn eq_hashes(hash1: Vec<u8>, hash2: Vec<u8>) -> bool {
     if hash1.len() != hash2.len() {
         return false;

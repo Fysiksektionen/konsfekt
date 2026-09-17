@@ -45,6 +45,8 @@ macro_rules! app_error_enum {
             }
 
             impl $wrapper {
+                /// Wraps `inner`, defaulting to a 500 status and capturing the call site
+                /// (via `#[track_caller]`) for inclusion in the error's [`Display`](std::fmt::Display) output.
                 #[track_caller]
                 pub fn new(inner: $inner) -> Self {
                     Self {
@@ -53,11 +55,13 @@ macro_rules! app_error_enum {
                     }
                 }
 
+                /// Overrides the HTTP status code returned for this error (default: 500).
                 pub fn with_status(mut self, code: StatusCode) -> Self {
                     self.http_code = code;
                     self
                 }
 
+                /// Attaches extra context appended to the error's [`Display`](std::fmt::Display) output.
                 pub fn add_info(mut self, info: String) -> Self {
                     self.additional_info = info;
                     self
@@ -190,6 +194,8 @@ impl SwishErrorResponse {
     }
 }
 
+// Generates `DatabaseError`, `ClientError`, `AuthError`, `SwishError`, `GenericError`
+// wrapper types plus the `AppError` enum unifying them; see [`app_error_enum`].
 app_error_enum! {
     Database(DatabaseError(sqlx::Error)),
     Client(ClientError(reqwest::Error)),
@@ -198,9 +204,13 @@ app_error_enum! {
     Generic(GenericError(&'static str, no_source))
 }
 
+/// Standard return type for route handlers: a successful [`Responder`], or an
+/// [`actix_web::Error`] built from an [`AppError`] variant.
 #[allow(type_alias_bounds)] // Type checking not done for T: Responder
 pub type ApiResult<T: Responder> = Result<T, actix_web::Error>;
 
+/// Dispatches to `$on_match` with the inner error of whichever [`AppError`] variant
+/// `$match` is, avoiding repeating the match arms for `Display`/`ResponseError`/`Error::source`.
 macro_rules! match_error_variant {
     ($match:ident, $on_match:expr) => {
         match $match {
