@@ -1,3 +1,6 @@
+//! This module contains a collection of error types to be used throughout
+//! the codebase.
+
 use core::fmt;
 
 use actix_web::{HttpResponse, Responder, ResponseError, http::StatusCode};
@@ -129,6 +132,7 @@ macro_rules! app_error_enum {
     };
 }
 
+/// The shape of a response Swish can send when encountering an error.
 #[derive(serde::Deserialize, Debug)]
 pub struct SwishErrorResponse {
     #[serde(rename = "errorCode")]
@@ -139,6 +143,7 @@ pub struct SwishErrorResponse {
     additional_info: String,
 }
 
+/// Swish can send multiple errors at once
 #[derive(serde::Deserialize, Debug)]
 pub struct SwishErrorList {
     pub list: Vec<SwishErrorResponse>,
@@ -173,6 +178,7 @@ impl fmt::Display for SwishErrorList {
 }
 
 impl SwishErrorResponse {
+    /// Used to turn Swish's error response to an error our app can propagate
     pub async fn to_error(resp: reqwest::Response) -> AppError {
         let status = resp.status();
         match resp.json::<Vec<SwishErrorResponse>>().await {

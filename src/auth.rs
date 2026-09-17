@@ -1,3 +1,5 @@
+//! Session based authorization based on principles from [lucia-auth](https://lucia-auth.com)
+
 use actix_web::{cookie::Cookie, http::StatusCode};
 use sha2::{Digest, Sha256};
 use sqlx::{Result, SqlitePool};

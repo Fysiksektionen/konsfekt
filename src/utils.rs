@@ -1,3 +1,5 @@
+//! Utility functions that could be useful throughout the codebase
+
 use std::{fs, io::BufReader};
 
 use rand::{rngs::OsRng, TryRngCore};

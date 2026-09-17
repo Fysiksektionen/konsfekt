@@ -1,3 +1,5 @@
+//! The entry point of [`konsfekt`]
+
 use std::time::Duration;
 
 use actix_cors::Cors;
@@ -8,6 +10,8 @@ use konsfekt::{database, routes, AppState, EnvironmentVariables, args};
 use actix_web::{middleware, web::Data, App, HttpServer};
 use sqlx::{Sqlite, SqlitePool};
 
+/// This runs when starting the konsfekt binary
+/// `cargo run --bin konsfekt`
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 
@@ -91,6 +95,10 @@ fn start_backup_thread(env: &EnvironmentVariables, pool: SqlitePool) {
     });
 }
 
+/// Setups logging using [`env_logger`].
+/// Normally logs info level logs (error, warnings, and info)
+/// Additional debug logging from crates like [`reqwest`] is logged 
+/// if debug mode is enabled (i.e normal `cargo run` without --release).
 fn create_logger(env: &EnvironmentVariables) {
     
     let mut builder = env_logger::Builder::from_default_env();
@@ -108,6 +116,9 @@ fn create_logger(env: &EnvironmentVariables) {
     builder.init();
 }
 
+/// Creation of the actual HTTP server
+/// More specifically, setups CORS, Headers, registers middleware
+/// and defines endpoints.
 fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl actix_web::dev::ServiceFactory<actix_web::dev::ServiceRequest, Config = (), Response = actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>, Error = actix_web::Error, InitError = ()>> {
     let mut cors = Cors::default()
             .supports_credentials()
@@ -121,7 +132,7 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
     }
     cors = cors
         .allowed_origin("tauri://localhost")
-        .allowed_origin("http://tauri.localhost");
+        .allowed_origin("http://tauri.localhost"); // Should remove these
     let mut app = App::new()
         .wrap(DefaultHeaders::new()
             .add(("X-Frame-Options", "DENY"))

@@ -1,3 +1,6 @@
+//! This module contains the "models" (structs) we use throughout the codebase.
+//! If a struct is used in many files, a good place to put it would be here.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{Role, database::{model::{ProductRow, TransactionItemRow, TransactionRow, UserRow}}, routes::stats};
