@@ -27,7 +27,7 @@ async fn main() -> std::io::Result<()> {
         log::info!("Frontend needs to be served separately")
     }
 
-    if env.backups_enabled {
+    if env.backups_enabled && env.backup_schedule.len() > 0 {
         log::info!("Creating backup...");
         let (db, uploads) = database::backup::create_backup(&pool)
             .await
@@ -37,7 +37,7 @@ async fn main() -> std::io::Result<()> {
             db, uploads
         );
 
-        start_backup_interval(&env, pool.clone());
+        start_backup_thread(&env, pool.clone());
     }
 
     let env_clone = env.clone();
@@ -47,15 +47,33 @@ async fn main() -> std::io::Result<()> {
         .await
 }
 
-fn start_backup_interval(env: &EnvironmentVariables, pool: SqlitePool) {
-    let sleep_time: u64 = env.backup_interval.second() as u64
-                        + env.backup_interval.minute() as u64   * 60 
-                        + env.backup_interval.hour()   as u64   * 60 * 60;
+fn start_backup_thread(env: &EnvironmentVariables, pool: SqlitePool) {
+    // let sleep_time: u64 = env.backup_interval.second() as u64
+    //                     + env.backup_interval.minute() as u64   * 60 
+    //                     + env.backup_interval.hour()   as u64   * 60 * 60;
+
+    let backup_schedule = env.backup_schedule.clone();
 
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(sleep_time)).await;    
-             
+            let sleep_time = backup_schedule
+                .iter()
+                .map(|x| {
+                    let now = time::OffsetDateTime::now_utc().time();
+                    let mut duration = (now + Duration::from_secs(60 * 60 * 2)).duration_until(*x);
+
+                    if duration.is_negative() {
+                        duration += Duration::from_secs(60 * 60 * 24);
+                    }
+
+                    return duration.whole_nanoseconds() as u64;
+                })
+                .min()
+                .unwrap(); // env.backup_schedule is not empty, (checked before calling funciton)
+
+            log::info!("Next backup in {} s.", sleep_time / (1000000000));
+            tokio::time::sleep(Duration::from_nanos(sleep_time)).await;    
+            
             match database::backup::create_backup(&pool).await {
                 Ok((db, uploads)) => log::info!(
                     "Successfully created database backup \"{}\" and uploads backup \"{}\"",
@@ -64,6 +82,8 @@ fn start_backup_interval(env: &EnvironmentVariables, pool: SqlitePool) {
                 ),
                 Err(_) => log::error!("Failed to create backup.")
             };
+
+            tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
 

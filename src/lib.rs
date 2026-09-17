@@ -27,7 +27,7 @@ pub struct EnvironmentVariables {
     pub swish_api_url: String,
     pub undo_purchase_secret: String, 
     pub backups_enabled: bool,
-    pub backup_interval: time::Time,
+    pub backup_schedule: Vec<time::Time>
 }
 
 fn required_env(name: &str) -> String {
@@ -75,10 +75,17 @@ impl EnvironmentVariables {
                 "true" | "True" | "t"  => true,
                 _ => false
             },
-            backup_interval: time::Time::parse(
-                required_env("BACKUP_INTERVAL").as_str(), 
-                &format_description!("[hour]:[minute]:[second]")
-            ).expect("Unable to parse BACKUP_INTERVAL timestamp, use format \"hh:mm:ss\""),
+
+            backup_schedule: required_env("BACKUP_SCHEDULE")
+                .as_str()
+                .split(",")
+                .skip_while(|x| x.is_empty())
+                .map(|x|
+                    time::Time::parse(
+                        x.trim_start().trim_end(),
+                        &format_description!("[hour]:[minute]")
+                    ).expect(format!("Unable to parse BACKUP_SCHEDULE timestamp, use format \"hh:mm\". Got value {}", x).as_str()),
+                ).collect()
         }
     }
 }
