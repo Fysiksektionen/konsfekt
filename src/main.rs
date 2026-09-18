@@ -57,7 +57,7 @@ async fn main() -> std::io::Result<()> {
 ///
 /// Assumes the caller already created an initial backup at startup; this only
 /// schedules the recurring ones. Failures are logged and do not stop the loop.
-fn start_backup_interval(env: &EnvironmentVariables, pool: SqlitePool) {
+fn start_backup_thread(env: &EnvironmentVariables, pool: SqlitePool) {
     // let sleep_time: u64 = env.backup_interval.second() as u64
     //                     + env.backup_interval.minute() as u64   * 60 
     //                     + env.backup_interval.hour()   as u64   * 60 * 60;
