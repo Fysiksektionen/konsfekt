@@ -65,7 +65,8 @@ impl EnvironmentVariables {
     ///
     /// # Panics
     /// Panics if a required environment variable is missing, if `SWISH_ENVIRONMENT`
-    /// is not `"prod"` or `"sandbox"`, or if `BACKUP_INTERVAL` cannot be parsed as `hh:mm:ss`.
+    /// is not `"prod"` or `"sandbox"`, or if any comma-separated entry in
+    /// `BACKUP_SCHEDULE` cannot be parsed as `hh:mm`.
     pub fn from_args(args: args::Args) -> Self {
         let _ = dotenv::dotenv();
 
