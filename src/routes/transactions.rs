@@ -5,17 +5,27 @@ use actix_web::{get, post, web::{self, Data, Json}};
 use crate::{AppState, Role, database::crud, error::ApiResult, model::{TransactionDetail, TransactionQuery, TransactionSummary}, return_err, routes::CurrentUser};
 
 /// `GET /api/get_detailed_transaction/{transaction_id}` — fetches a transaction
-/// with its line items. Requires an authenticated user ([`Role::User`] or above).
-///
-/// Note this passes the *requesting* user (not necessarily the transaction's buyer)
-/// into [`crud::get_detailed_transaction`], so the response's `user` field and
-/// privacy handling are based on the caller, not on who actually made the purchase —
-/// this looks unintentional and worth double-checking against how the frontend uses it.
+/// with its line items. Requires an authenticated user; a regular [`Role::User`]
+/// may only fetch their own transactions (matched against the transaction's
+/// stored buyer). Anonymous/anonymized transactions (no stored buyer) and
+/// transactions belonging to another user both require [`Role::Maintainer`] or above.
 #[get("/api/get_detailed_transaction/{transaction_id}")]
 pub async fn get_detailed_transaction(state: Data<AppState>, current_user: CurrentUser, path: web::Path<u32>) -> ApiResult<Json<TransactionDetail>> {
     let user = current_user.require_role(Role::User)?.into_row();
-    let transaction = crud::get_detailed_transaction(&state.db, *path, user).await?;
-    Ok(Json(transaction))
+    let transaction = crud::get_detailed_transaction(&state.db, *path).await?;
+
+    if let Some(tx_user) = &transaction.user {
+        if tx_user.id == user.id {
+            return Ok(Json(transaction));
+        } else {
+            // Only maintainers can retrieve other's transactions
+            current_user.require_role(Role::Maintainer)?;
+        }
+    } else {
+        // Only maintainers can retrieve private transactions
+        current_user.require_role(Role::Maintainer)?;
+    };
+    return Ok(Json(transaction));
 }
 
 /// Rejects a [`TransactionQuery`] with `403` if a non-admin/maintainer user is

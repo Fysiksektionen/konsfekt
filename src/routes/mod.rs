@@ -44,7 +44,7 @@ struct CurrentUser {
 impl CurrentUser {
 
     /// Fails the request with `403 Forbidden` unless the user's role is `>= role`.
-    pub fn require_role(self, role: Role) -> ApiResult<Self> {
+    pub fn require_role(&self, role: Role) -> ApiResult<&Self> {
         if self.user.role >= role {
             return Ok(self);
         };
@@ -53,8 +53,8 @@ impl CurrentUser {
     }
 
     /// Unwraps this extractor into the underlying [`UserRow`].
-    pub fn into_row(self) -> UserRow {
-        self.user
+    pub fn into_row(&self) -> UserRow {
+        self.user.clone()
     }
 
 }

@@ -50,13 +50,27 @@ pub async fn create_user(pool: &SqlitePool, name: Option<&str>, email: &str, goo
 ///
 /// # Errors
 /// Returns [`sqlx::Error::RowNotFound`] (wrapped) if no user matches.
+#[deprecated(note = "use try_get_user instead and handle the None case explicitly")]
 pub async fn get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<UserRow, DatabaseError> {
-    let user: UserRow = sqlx::query_as(
+    let user = try_get_user(pool, user_id, google_id).await?;
+    return match user {
+        Some(u) => Ok(u),
+        None => Err(sqlx::Error::RowNotFound.into())
+    }
+}
+
+/// Fetches a user by id or Google id (whichever is `Some`), or `None` if no user
+/// matches. The non-deprecated replacement for [`get_user`] — e.g.
+/// [`get_detailed_transaction`] uses this because an anonymized transaction
+/// legitimately has no associated user.
+pub async fn try_get_user(pool: &SqlitePool, user_id: Option<u32>, google_id: Option<&str>) -> Result<Option<UserRow>, DatabaseError> {
+    let user: Option<UserRow> = sqlx::query_as(
         r#"
         SELECT id, name, email, google_id, role, balance, on_leaderboard, private_transactions
         FROM User 
         WHERE id = ? OR google_id = ?
-        "#).bind(user_id).bind(google_id).fetch_one(pool).await?;
+        "#).bind(user_id).bind(google_id).fetch_optional(pool).await?;
+    
     Ok(user)
 }
 
@@ -417,13 +431,17 @@ pub async fn get_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<T
 
 /// Fetches a transaction along with its line items, building a [`TransactionDetail`].
 ///
-/// Note `user` is only used for its `private_transactions` flag and to populate
-/// the response's `user` field ([`crate::model::TransactionDetail::create`]) — it is
-/// not necessarily the transaction's actual buyer (`transaction.user`); the caller
-/// is responsible for passing the right [`UserRow`].
-pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32, user: UserRow) -> Result<TransactionDetail, DatabaseError> {
+/// The buyer looked up here is always the transaction's actual owner
+/// (`transaction.user`, via [`try_get_user`]) — `None` if the transaction was
+/// anonymous/anonymized, in which case the response's `user` field is also `None`.
+/// This function does no authorization itself; callers must separately check that
+/// the requester is allowed to see this transaction (see
+/// [`crate::routes::transactions::get_detailed_transaction`], which only allows
+/// the transaction's owner or a maintainer).
+pub async fn get_detailed_transaction(pool: &SqlitePool, transaction_id: u32) -> Result<TransactionDetail, DatabaseError> {
     let transaction = get_transaction(pool, transaction_id).await?;
 
+    let user = try_get_user(pool, transaction.user, None).await?;
     let mut detailed_transaction = TransactionDetail::create(transaction, user);
 
     let items: Vec<TransactionItemRow> = sqlx::query_as(r#"

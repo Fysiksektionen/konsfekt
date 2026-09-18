@@ -57,9 +57,13 @@ pub fn parse_auth_cookie(cookie: Option<Cookie<'static>>) -> Option<Token> {
 /// Resolves the logged-in user from a session cookie: parses it, looks up the
 /// session by its id, then fetches the associated user row.
 ///
-/// Note this only checks that a non-expired session with the cookie's id exists;
-/// unlike [`validate_session`] it does not verify the token's secret against
-/// `Session::secret_hash`.
+/// This only checks that a non-expired session with the cookie's id exists; unlike
+/// [`validate_session`] it does not itself verify the token's secret against
+/// `Session::secret_hash`. That's fine in practice: every route this is used from
+/// sits behind [`crate::routes::session_middleware`], which already calls
+/// [`validate_session`] (full secret check) before the request reaches a handler.
+/// Do not call this from a route that isn't covered by that middleware without
+/// adding an explicit [`validate_session`] check.
 ///
 /// # Errors
 /// Returns `400 Bad Request` if the cookie is missing/malformed, or

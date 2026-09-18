@@ -135,10 +135,6 @@ pub async fn update_product(state: Data<AppState>, current_user: CurrentUser, Mu
 
 /// `POST /api/mark_sold_out` — flags a stocked product as sold out (cosmetic;
 /// doesn't change `stock`). Fails with `409` for products without stock tracking.
-///
-/// Note this handler takes no [`CurrentUser`]/role parameter, so — unlike the
-/// other product-mutating routes — it is reachable by any logged-in user, not
-/// just maintainers; worth double-checking this is intentional.
 #[post("/api/mark_sold_out")]
 pub async fn mark_sold_out(state: Data<AppState>, params: web::Json<ProductIdJson>) -> ApiResult<()> {
     let mut product = get_product_from_id(&state.db, Some(params.id)).await?;
@@ -314,10 +310,9 @@ pub async fn undo_purchase(state: Data<AppState>, current_user: CurrentUser, pur
         return_err!(actix_web::error::ErrorConflict("Transaction cannot be undone anymore"));
     }
 
-    let user_id = user.id;
-    let full_transaction = crud::get_detailed_transaction(&state.db, purchase_response.transaction_id, user).await?;
+    let full_transaction = crud::get_detailed_transaction(&state.db, purchase_response.transaction_id).await?;
 
-    database::crud::undo_purchase(&state.db, purchase_response.transaction_id, user_id, transaction.amount).await?;
+    database::crud::undo_purchase(&state.db, purchase_response.transaction_id, user.id, transaction.amount).await?;
     
     for item in full_transaction.items {
         let product = database::crud::get_product(&state.db, item.product_id).await?;

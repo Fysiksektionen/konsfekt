@@ -4,7 +4,7 @@
 use actix_web::{Result, get, post, web::{self, Data}};
 use serde::{Deserialize, Serialize};
 
-use crate::{AppState, Role, database::{crud, model::UserRow}, error::ApiResult, model::{PendingTransaction, UserResponse}, return_err, routes::{CurrentUser}};
+use crate::{AppState, Role, database::crud, error::ApiResult, model::{PendingTransaction, UserResponse}, return_err, routes::{CurrentUser}};
 
 /// `GET /api/get_user` — returns the current user's own profile.
 #[get("/api/get_user")]
@@ -33,15 +33,13 @@ struct GetUsersQuery {
 /// Response body for [`get_users`].
 #[derive(Serialize)]
 struct GetUsersResponse {
-    users: Vec<UserRow>
+    users: Vec<UserResponse>
 }
 
-/// `GET /api/get_users?role=<role>` — lists all users with the given role.
+/// `GET /api/get_users?role=<role>` — lists all users with the given role, as
+/// [`UserResponse`]s (previously this leaked full [`UserRow`]s including
+/// `google_id`/`balance`; now redacted like every other client-facing response).
 /// Requires [`Role::Maintainer`].
-///
-/// Note this serializes full [`UserRow`]s (including `google_id` and `balance`),
-/// despite that type being commented "DO NOT SEND TO FRONTEND" — presumably
-/// acceptable here since only maintainers/admins can call it, but worth confirming.
 #[get("/api/get_users")]
 pub async fn get_users(state: Data<AppState>, current_user: CurrentUser, query: web::Query<GetUsersQuery>) -> ApiResult<web::Json<GetUsersResponse>> {
     // Possible to expand in future for diffrent queries
@@ -50,7 +48,8 @@ pub async fn get_users(state: Data<AppState>, current_user: CurrentUser, query: 
     
     match &query.role {
         Some(role) => {
-            let users = crud::get_users_from_role(&state.db, Role::from_str(role.as_str())).await?;
+            let users = crud::get_users_from_role(&state.db, Role::from_str(role.as_str())).await?
+                .into_iter().map(|u| u.into()).collect();
             Ok(web::Json(GetUsersResponse { users: users }))
         },
         None => { return_err!(actix_web::error::ErrorBadRequest("")); }

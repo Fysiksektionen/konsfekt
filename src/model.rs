@@ -187,17 +187,15 @@ impl TransactionDetail {
     }
 
     /// Builds a [`TransactionDetail`] with no line items yet (use [`Self::add_items`]
-    /// to fill them in). The buyer is omitted from the response if they have
-    /// `private_transactions` enabled.
-    pub fn create(transaction: TransactionRow, user: UserRow) -> Self {
-        let user_response = match user.private_transactions {
-            true => None,
-            false => Some(UserResponse::from(user))
-        };
+    /// to fill them in). `user` should be `None` when the transaction has no
+    /// associated buyer (an anonymous purchase, or one anonymized via
+    /// [`crate::database::crud::unlink_transactions`]) — it is passed straight
+    /// through to the response's `user` field.
+    pub fn create(transaction: TransactionRow, user: Option<UserRow>) -> Self {
         TransactionDetail {
             id: transaction.id,
             amount: transaction.amount,
-            user: user_response,
+            user: user.map(|u| u.into()),
             datetime: transaction.datetime,
             admin_issued: transaction.admin_issued,
             items: Vec::new()

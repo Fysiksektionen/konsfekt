@@ -8,7 +8,7 @@ use crate::{Role, model::ProductFlags, routes::payment::swish};
 /// must never be serialized directly to the frontend — see [`crate::model::UserResponse`].
 ///
 /// DO NOT SEND TO FRONTEND
-#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct UserRow {
     pub id: u32,
     pub name: Option<String>,
