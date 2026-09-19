@@ -12,11 +12,13 @@
 
 	let { data }: PageProps = $props();
 
-  data.products.forEach((p: {id: string}) => {
-    if (!cart.products[p.id]) {
-      cart.products[p.id] = 0;
-    }
-  })
+  $effect.pre(() => {
+    data.products.forEach((p: {id: string}) => {
+      if (!(p.id in cart.products)) {
+        cart.products[p.id] = 0;
+      }
+    });
+  });
 
   let searchTerm = $state("");
   let filteredProducts = $derived.by(() => {
