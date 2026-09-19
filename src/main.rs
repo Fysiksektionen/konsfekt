@@ -204,7 +204,10 @@ fn create_http(env: EnvironmentVariables, pool: sqlx::Pool<Sqlite>) -> App<impl 
     }
 
     if env.static_frontend {
-        app.service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
+        app.service(scope("/_app/immutable")
+                .wrap(DefaultHeaders::new().add(("Cache-Control", "public, max-age=31536000, immutable")))
+                .service(actix_files::Files::new("", "./frontend/build/_app/immutable")))
+            .service(actix_files::Files::new("/", "./frontend/build").index_file("index.html"))
             .default_service(actix_web::web::get().to(|| async {
                 actix_files::NamedFile::open("./frontend/build/index.html")
             }))
