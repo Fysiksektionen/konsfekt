@@ -43,7 +43,7 @@ pub fn read_to_string(path: &str) -> Result<String, std::io::Error> {
 }
 
 /// Width/height (in pixels) that product images are resized to before being saved.
-pub const IMG_DISK_SIZE: u32 = 512;
+pub const IMG_DISK_SIZE: u32 = 360;
 /// Directory product images are stored in, keyed by product id/name.
 pub const IMG_DISK_PATH: &str = "./db/uploads/images/product/";
 
@@ -56,7 +56,7 @@ pub fn save_img_to_disk(img_file: TempFile, name: &str) -> Option<()> {
     let reader = BufReader::new(file);
     let img = ImageReader::new(reader).with_guessed_format().ok()?.decode().ok()?;
 
-    // Crop a square centerd around the midde, with side = min(width, height)
+    // Crop a square centered around the midde, with side = min(width, height)
     let side = std::cmp::min(img.width(), img.height());
     let mut x: u32 = 0; 
     let mut y: u32 = 0; 
@@ -69,7 +69,8 @@ pub fn save_img_to_disk(img_file: TempFile, name: &str) -> Option<()> {
     let squared = img.crop_imm(x, y, side, side);
     let resized = squared.resize(IMG_DISK_SIZE, IMG_DISK_SIZE, image::imageops::FilterType::Triangle);
 
-    resized.save(format!("{IMG_DISK_PATH}{}.webp", name)).ok()
+    let webp_data = webp::Encoder::from_image(&resized).ok()?.encode(80.0);
+    fs::write(format!("{IMG_DISK_PATH}{}.webp", name), &*webp_data).ok()
 }
 
 /// Deletes the product image previously saved by [`save_img_to_disk`] for `name`.

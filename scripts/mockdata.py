@@ -23,7 +23,7 @@ args = parser.parse_args()
 
 DB_PATH = "./db/db.sqlite"
 
-IMG_DISK_SIZE = 512
+IMG_DISK_SIZE = 360
 IMG_DISK_PATH = "./db/uploads/images/product/"
 PRODUCT_METADATA_PATH = "./scripts/dogs_metadata.json"
 PRODUCT_IMAGE_API_URL = "https://dog.ceo/api/breeds/image/random"
@@ -63,7 +63,7 @@ def add_products(conn, cur, count):
             y = (h-side)//2
         img = img.crop((x, y, side, side))
         img = img.resize((IMG_DISK_SIZE, IMG_DISK_SIZE), Image.BICUBIC)
-        img.save(f"{IMG_DISK_PATH}{id}.webp", "WEBP", lossless=True)
+        img.save(f"{IMG_DISK_PATH}{id}.webp", "WEBP", quality=80)
 
         conn.commit()
         yield
