@@ -12,14 +12,6 @@
 
 	let { data }: PageProps = $props();
 
-  $effect.pre(() => {
-    data.products.forEach((p: {id: string}) => {
-      if (!(p.id in cart.products)) {
-        cart.products[p.id] = 0;
-      }
-    });
-  });
-
   let searchTerm = $state("");
   let filteredProducts = $derived.by(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -73,7 +65,7 @@
       <h3 class="scroll-m-20 text-2xl font-semibold tracking-tight">Populära produkter</h3>
       <div class="grid w-full grid-cols-2 gap-4 sm:grid-cols-4">
         {#each popularProducts as product (product.id)}
-          <ProductDisplay user={data.user} {product} bind:addedToCart={cart.products[product.id]}/>
+          <ProductDisplay user={data.user} {product} bind:addedToCart={() => cart.products[product.id] ?? 0, (n) => (cart.products[product.id] = n)}/>
         {/each}
       </div>
     </div>
@@ -103,7 +95,7 @@
     {:else}
       <div class="grid w-full grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {#each filteredProducts as product (product.id)}
-          <ProductDisplay user={data.user} {product} bind:addedToCart={cart.products[product.id]}/>
+          <ProductDisplay user={data.user} {product} bind:addedToCart={() => cart.products[product.id] ?? 0, (n) => (cart.products[product.id] = n)}/>
         {/each}
       </div>
     {/if}

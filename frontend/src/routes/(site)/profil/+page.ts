@@ -5,7 +5,7 @@ export const load: PageLoad = async ({ fetch }) => {
     let user = await getUser(fetch);
     let transactionQuery = transactionQueryFromUserId(user.id)
 
-    let transactions: TransactionSummary[] = await getTransactions(transactionQuery);
+    let transactions: TransactionSummary[] = await getTransactions(transactionQuery, fetch);
 
     return {
         user,

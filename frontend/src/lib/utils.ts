@@ -106,7 +106,7 @@ export function transactionQueryFromUserId(ownUserId: number): TransactionQuery 
     };
 }
 
-export async function getTransactions(query?: TransactionQuery) {
+export async function getTransactions(query?: TransactionQuery, fetch?: svelteFetch) {
     if (import.meta.env.SSR) {
         return [];
     }
@@ -114,7 +114,7 @@ export async function getTransactions(query?: TransactionQuery) {
         query = defaultTransactionQuery();
     }
     // Need POST because of complex query structure
-    let transactionResponse = await backendPOST("/get_transactions", query, true);
+    let transactionResponse = await backendPOST("/get_transactions", query, true, fetch);
     if (!transactionResponse.ok) {
         throw error(transactionResponse.status, transactionResponse.statusText);
     }
@@ -215,7 +215,7 @@ export async function fetchJSON(fetch: svelteFetch, url: string) {
     return resp.json();
 }
 
-export async function backendPOST(endpoint: string, payload: any, json: boolean) {
+export async function backendPOST(endpoint: string, payload: any, json: boolean, fetch: svelteFetch = globalThis.fetch) {
     let options: RequestInit = {
         method: "POST",
         credentials: "include"

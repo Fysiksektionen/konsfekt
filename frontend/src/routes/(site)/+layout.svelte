@@ -27,6 +27,10 @@
   let scrolled = $state(false);
 
   onMount(() => {
+    // Reserve scrollbar space so fixed elements don't shift when a dialog locks scroll.
+    // Set here instead of <svelte:head> since hover-preloading renders head content early. Site pages only; admin doesn't scroll the page.
+    document.documentElement.style.scrollbarGutter = "stable";
+
     let localCart = localStorage.getItem("cart");
     if (localCart) {
       cart.products = JSON.parse(localCart);
@@ -42,7 +46,10 @@
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      document.documentElement.style.scrollbarGutter = "";
+    };
   })
 
   $effect(() => {

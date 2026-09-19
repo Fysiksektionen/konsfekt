@@ -98,7 +98,7 @@
 <Dialog.Root bind:open={transactionViewOpen}>
   <Dialog.Content>
     <Dialog.Header>
-      <Dialog.Title>{currentTransaction?.amount > 0 ? "Insättning" : "Köp" }</Dialog.Title>
+      <Dialog.Title>{currentTransaction ? transactionTypeLabel(currentTransaction) : ""}</Dialog.Title>
       <Dialog.Description>
         {getDateString(currentTransaction?.datetime)}
         <Separator/>

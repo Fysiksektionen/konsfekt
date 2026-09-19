@@ -177,9 +177,6 @@
 /* Keep the scrollbar gutter reserved when a dialog locks body scroll, so fixed
    elements (navbar) don't shift. bits-ui's scroll lock sets overflow:hidden and adds
    compensating padding/margin on body; the gutter makes that compensation unnecessary. */
-html {
-  scrollbar-gutter: stable;
-}
 body[style*="overflow: hidden"] {
   padding-right: 0 !important;
   margin-right: 0 !important;

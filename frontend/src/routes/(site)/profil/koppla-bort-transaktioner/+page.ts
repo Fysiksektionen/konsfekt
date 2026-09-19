@@ -6,6 +6,6 @@ export const load: PageLoad = async ({ fetch }) => {
     let transactionQuery = transactionQueryFromUserId(user.id)
     return {
         user,
-        transactions: await getTransactions(transactionQuery)
+        transactions: await getTransactions(transactionQuery, fetch)
     }
 };
